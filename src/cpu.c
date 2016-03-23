@@ -11,26 +11,14 @@ void cpu_reset() {
 }
 
 void cpu_push_stack(uint16_t word) {
-	mem_write16(REG_SP, word);
 	REG_SP -= 2;
+	mem_write16(REG_SP, word);
 }
 
 uint16_t cpu_pop_stack() {
+	uint16_t result = mem_read16(REG_SP);
 	REG_SP += 2;
-	return mem_read16(REG_SP);
-}
-
-void cpu_set_flags8(uint8_t prev, uint8_t curr, uint8_t subtraction) {
-	cpu_set_flag(FLAG_Z, !curr);
-	cpu_set_flag(FLAG_O, subtraction);
-	cpu_set_flag(FLAG_H, prev > curr);
-}
-
-void cpu_set_flags16(uint16_t prev, uint16_t curr, uint8_t subtraction) {
-	cpu_set_flag(FLAG_Z, !curr);
-	cpu_set_flag(FLAG_O, subtraction);
-	cpu_set_flag(FLAG_H, (prev & 0xf) > (curr & 0xf));
-	cpu_set_flag(FLAG_C, prev > curr & 0xf);
+	return result;
 }
 
 /* returns num of cycles */
@@ -41,9 +29,10 @@ uint8_t cpu_step() {
 
 	int8_t offset = 0;
 	int8_t immediate = 0;
-	uint8_t prev8 = 0;
-	uint16_t prev16 = 0;
 	uint16_t addr = 0;
+
+	int32_t result = 0;
+	int32_t result4 = 0; /* for half carry flag */
 
 	char instruction_str[32] = {0};
 
@@ -55,9 +44,11 @@ uint8_t cpu_step() {
 		break;
 	case 0x05:
 		/* dec b */
-		prev8 = REG_B;
-		REG_B--;
-		cpu_set_flag(FLAG_Z, !REG_B);
+		result = REG_B - 1;
+		cpu_set_flag(FLAG_Z, !result);
+		cpu_set_flag(FLAG_N, 1);
+		cpu_set_flag(FLAG_H, result > REG_B);
+		REG_B = result & 0xff;
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "dec b");
 		break;
@@ -69,15 +60,21 @@ uint8_t cpu_step() {
 		break;
 	case 0x0c:
 		/* inc c */
-		REG_C++;
-		cpu_set_flag(FLAG_Z, !REG_C);
+		result = REG_C + 1;
+		cpu_set_flag(FLAG_Z, !result);
+		cpu_set_flag(FLAG_N, 0);
+		cpu_set_flag(FLAG_H, result > 0xff);
+		REG_C = result;
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "inc c");
 		break;
 	case 0x0d:
 		/* dec c */
-		REG_C--;
-		cpu_set_flag(FLAG_Z, !REG_C);
+		result = REG_C - 1;
+		cpu_set_flag(FLAG_Z, !result);
+		cpu_set_flag(FLAG_N, 1);
+		cpu_set_flag(FLAG_H, result > REG_C);
+		REG_C = result & 0xff;
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "dec c");
 		break;
@@ -89,7 +86,7 @@ uint8_t cpu_step() {
 		break;
 	case 0x20:
 		/* jr nz, n */
-		offset = (int8_t) mem_fetch8();
+		offset = (int8_t) mem_fetch8(); /* signed value */
 		if (cpu_nz()) REG_PC += (int16_t) offset;
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "jr nz, $%02hhx", offset);
@@ -127,6 +124,17 @@ uint8_t cpu_step() {
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "ldd (hl), a");
 		break;
+	case 0x3d:
+		/* dec a */
+		result = REG_A - 1;
+		result4 = (REG_A & 0xf) - 1;
+		cpu_set_flag(FLAG_Z, !result);
+		cpu_set_flag(FLAG_N, 1);
+		cpu_set_flag(FLAG_H, result < 0);
+		REG_A = result & 0xff;
+		cycles = 4;
+		if (DEBUG) sprintf(instruction_str, "dec a");
+		break;
 	case 0x3e:
 		/* ld a, n */
 		REG_A = mem_fetch8();
@@ -140,11 +148,13 @@ uint8_t cpu_step() {
 		break;
 	case 0x87:
 		/* add a, a */
-		immediate = REG_A;
-		REG_A += REG_A;
-		/* TODO set flags correctly */
-		cpu_set_flag(FLAG_Z, !REG_A);
-		cpu_set_flag(FLAG_C, REG_A < immediate);
+		result = REG_A * 2;
+		result4 = (REG_A & 0xf) * 2;
+		cpu_set_flag(FLAG_Z, !result);
+		cpu_set_flag(FLAG_N, 0);
+		cpu_set_flag(FLAG_H, result4 > 0xf);
+		cpu_set_flag(FLAG_C, result > 0xff);
+		REG_A = result;
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "add a, a");
 		break;
@@ -157,9 +167,13 @@ uint8_t cpu_step() {
 	case 0xc6:
 		/* add a, # */
 		immediate = mem_fetch8();
-		REG_A += immediate;
-		/* TODO set flags correctly */
-		cpu_set_flag(FLAG_Z, !REG_A);
+		result = REG_A + immediate;
+		result4 = (REG_A & 0xf) + (immediate & 0xf);
+		cpu_set_flag(FLAG_Z, !result);
+		cpu_set_flag(FLAG_N, 0);
+		cpu_set_flag(FLAG_H, result4 > 0xf);
+		cpu_set_flag(FLAG_C, result > 0xff);
+		REG_A = result;
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "add a, $%02x", immediate);
 		break;
@@ -176,10 +190,6 @@ uint8_t cpu_step() {
 		REG_PC = addr;
 		cycles = 12;
 		if (DEBUG) sprintf(instruction_str, "call $%04x", addr);
-		if (addr == 0x035b) {
-			cpu_debug();
-			exit(1);
-		}
 		break;
 	case 0xd0:
 		/* ret nc */
@@ -190,9 +200,13 @@ uint8_t cpu_step() {
 	case 0xd6:
 		/* sub a, # */
 		immediate = mem_fetch8();
-		REG_A -= immediate;
-		/* TODO set flags correctly */
-		cpu_set_flag(FLAG_Z, !REG_A);
+		result = REG_A - immediate;
+		result4 = (REG_A & 0xf) - (immediate & 0xf);
+		cpu_set_flag(FLAG_Z, !result);
+		cpu_set_flag(FLAG_N, 1);
+		cpu_set_flag(FLAG_H, result4 < 0);
+		cpu_set_flag(FLAG_C, result < 0);
+		REG_A = result;
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "sub a, $%02x", immediate);
 		break;
@@ -231,17 +245,30 @@ uint8_t cpu_step() {
 		cycles = 12;
 		if (DEBUG) sprintf(instruction_str, "ld a, ($ff00+n)");
 		break;
-
 	case 0xf3:
 		/* enable int */
+		/* TODO */
 		if (DEBUG) sprintf(instruction_str, "ei");
 		cycles = 4;
 		break;
 	case 0xfb:
 		/* disable int */
+		/* TODO */
 		if (DEBUG) sprintf(instruction_str, "di");
 		cycles = 4;
 		break;
+	case 0xfe:
+		immediate = mem_fetch8();
+		result = REG_A - immediate;
+		result4 = (REG_A & 0xf) - (immediate & 0xf);
+		cpu_set_flag(FLAG_Z, !result);
+		cpu_set_flag(FLAG_N, 1);
+		cpu_set_flag(FLAG_H, result4 < 0);
+		cpu_set_flag(FLAG_C, result < 0);
+		cycles = 8;
+		if (DEBUG) sprintf(instruction_str, "cp a, $%02x", immediate);
+		break;
+
 	default:
 		printf("Unimplemented instruction %02X\n", op);
 		exit(1);
@@ -253,13 +280,12 @@ uint8_t cpu_step() {
 }
 
 void cpu_debug() {
-	//printf("\nREGISTERS\n");
 	printf("AF: %02X %02X  ", REG_A, REG_F);
 	printf("BC: %02X %02X\n", REG_B, REG_C);
 	printf("DE: %02X %02X  ", REG_D, REG_E);
 	printf("HL: %02X %02X\n", REG_H, REG_L);
 	printf("PC: %02X %02X  ", REG_PC >> 8, REG_PC & 0xFF);
 	printf("SP: %02X %02X\n", REG_SP >> 8, REG_SP & 0xFF);
-	printf("ZOHC\n%01X%01X%01X%01X\n", cpu_z(), cpu_o(), cpu_h(), cpu_c());
+	printf("ZNHC\n%01X%01X%01X%01X\n", cpu_z(), cpu_o(), cpu_h(), cpu_c());
 	printf("\n");
 }

@@ -17,14 +17,14 @@
 #define REG_L registers.L
 
 #define FLAG_Z 0x80
-#define FLAG_O 0x40
+#define FLAG_N 0x40
 #define FLAG_H 0x20
 #define FLAG_C 0x10
 #define cpu_z() ((REG_F & FLAG_Z) != 0)
 #define cpu_nz() ((REG_F & FLAG_Z) == 0)
 #define cpu_c() ((REG_F & FLAG_C) != 0)
 #define cpu_nc() ((REG_F & FLAG_C) == 0)
-#define cpu_o() ((REG_F & FLAG_O) != 0)
+#define cpu_o() ((REG_F & FLAG_N) != 0)
 #define cpu_h() ((REG_F & FLAG_H) != 0)
 #define cpu_set_flag(flag, val) (REG_F = val ? REG_F | flag : REG_F & ~flag)
 
