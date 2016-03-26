@@ -3,7 +3,8 @@
 #include "gpu.h"
 #include "mem.h"
 
-#define REG_LY MEM[0xff44]
+#define REG_STAT 	MEM[0xff41]
+#define REG_LY 		MEM[0xff44]
 
 uint16_t clock = 0;
 uint8_t mode = 0;
@@ -21,6 +22,7 @@ void gpu_step(uint16_t cycles) {
 		// Enter scanline mode 3
 		clock = 0;
 		mode = 3;
+		REG_STAT = (REG_STAT & 0xfc) | mode;
 	}
 	break;
 
@@ -31,6 +33,7 @@ void gpu_step(uint16_t cycles) {
 		// Enter hblank
 		clock = 0;
 		mode = 0;
+		REG_STAT = (REG_STAT & 0xfc) | mode;
 
 		// Write a scanline to the framebuffer
 		//GPU.renderscan();
@@ -47,9 +50,11 @@ void gpu_step(uint16_t cycles) {
 		if(REG_LY == 143) {
 			// Enter vblank
 			mode = 1;
+			REG_STAT = (REG_STAT & 0xfc) | mode;
 			//GPU._canvas.putImageData(GPU._scrn, 0, 0);
 		} else {
 			mode = 2;
+			REG_STAT = (REG_STAT & 0xfc) | mode;
 		}
 	}
 	break;
@@ -62,8 +67,9 @@ void gpu_step(uint16_t cycles) {
 
 		if(REG_LY > 153) {
 			// Restart scanning modes
-			mode = 2;
 			REG_LY = 0;
+			mode = 2;
+			REG_STAT = (REG_STAT & 0xfc) | mode;
 		}
 	}
 	break;

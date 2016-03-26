@@ -101,6 +101,13 @@ uint8_t cpu_step() {
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "jr $%02hhx", offset);
 		break;
+	case 0x1b:
+		/* dec de */
+		REG_E--;
+		if (REG_E == 0xff) REG_D--;
+		cycles = 8;
+		if (DEBUG) sprintf(instruction_str, "dec de");
+		break;
 	case 0x20:
 		/* jr nz, n */
 		offset = (int8_t) mem_fetch8(); /* signed value */
@@ -160,8 +167,20 @@ uint8_t cpu_step() {
 		break;
 	case 0x76:
 		/* halt */
-		if (DEBUG) sprintf(instruction_str, "halt");
 		cycles = 4;
+		if (DEBUG) sprintf(instruction_str, "halt");
+		break;
+	case 0x78:
+		/* ld a, b */
+		REG_A = REG_B;
+		cycles = 4;
+		if (DEBUG) sprintf(instruction_str, "ld a, b");
+		break;
+	case 0x7a:
+		/* ld a, d */
+		REG_A = REG_D;
+		cycles = 4;
+		if (DEBUG) sprintf(instruction_str, "ld a, d");
 		break;
 	case 0x87:
 		/* add a, a */
@@ -174,6 +193,16 @@ uint8_t cpu_step() {
 		REG_A = result;
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "add a, a");
+		break;
+	case 0xb3:
+		/* or e */
+		REG_A |= REG_E;
+		cpu_set_flag(FLAG_Z, !(REG_A & 0xff));
+		cpu_set_flag(FLAG_N, 0);
+		cpu_set_flag(FLAG_H, 0);
+		cpu_set_flag(FLAG_C, 0);
+		cycles = 4;
+		if (DEBUG) sprintf(instruction_str, "or e");
 		break;
 	case 0xc3:
 		/* jmp nn */

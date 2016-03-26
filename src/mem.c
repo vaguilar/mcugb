@@ -14,8 +14,8 @@ uint8_t mem_read8(uint16_t addr) {
 }
 
 uint16_t mem_read16(uint16_t addr) {
-	//return (MEM[addr+1] << 8) | MEM[addr];
-	return ((uint16_t*) (&MEM[addr]))[0];
+	return (MEM[addr+1] << 8) | MEM[addr];
+	//return ((uint16_t*) (&MEM[addr]))[0];
 }
 
 void mem_write8(uint16_t addr, uint8_t byte) {
@@ -39,7 +39,9 @@ void mem_write8(uint16_t addr, uint8_t byte) {
 }
 
 void mem_write16(uint16_t addr, uint16_t word) {
-	((uint16_t*) (&MEM[addr]))[0] = word;
+	//((uint16_t*) (&MEM[addr]))[0] = word;
+	MEM[addr+1] = word >> 8;
+	MEM[addr] = word & 0xff;
 }
 
 uint8_t mem_fetch8() {

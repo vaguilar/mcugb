@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
 	cpu_reset();
 	REG_PC = 0x0100;
 
-	for (i = 0; i < 50000; i++) {
+	for (i = 0; i < 90000; i++) {
 		//if (REG_PC == 0x039f) { printf("BREAK\n"); break; }
 		cycles = cpu_step();
 		gpu_step(cycles);
