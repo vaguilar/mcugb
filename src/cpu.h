@@ -16,10 +16,19 @@
 #define REG_H registers.H
 #define REG_L registers.L
 
+#define REG_INTERRUPT_ENABLE MEM[0xffff]
+
+#define INT_PIN    0x10
+#define INT_SERIAL 0x08
+#define INT_TIMER  0x04
+#define INT_LCDC   0x02
+#define INT_VBLANK 0x01
+
 #define FLAG_Z 0x80
 #define FLAG_N 0x40
 #define FLAG_H 0x20
 #define FLAG_C 0x10
+
 #define cpu_z() ((REG_F & FLAG_Z) != 0)
 #define cpu_nz() ((REG_F & FLAG_Z) == 0)
 #define cpu_c() ((REG_F & FLAG_C) != 0)
@@ -44,6 +53,13 @@ struct {
 	uint16_t PC;
 	uint16_t SP;
 } registers;
+
+struct {
+	uint8_t halt;
+	uint8_t interrupts;
+	uint8_t interrupt_enable;
+	uint8_t interrupt_flag;
+} cpu_state;
 
 void cpu_reset();
 void cpu_debug();

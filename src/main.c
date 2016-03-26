@@ -7,7 +7,7 @@
 
 int main(int argc, char **argv) {
 	FILE *fp;
-	uint32_t i;
+	uint32_t i, cycles, total_cycles;
 
 	run_tests();
 
@@ -18,9 +18,14 @@ int main(int argc, char **argv) {
 	cpu_reset();
 	REG_PC = 0x0100;
 
-	for (i = 0; i < 25240; i++) {
-		cpu_step();
+	for (i = 0; i < 50000; i++) {
+		//if (REG_PC == 0x039f) { printf("BREAK\n"); break; }
+		cycles = cpu_step();
+		gpu_step(cycles);
 		cpu_debug();
+
+		total_cycles += cycles;
 	}
 
+	mem_debug(0x9c00, 32);
 }
