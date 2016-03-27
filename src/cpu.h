@@ -1,5 +1,7 @@
 #pragma once
 
+#define BIT7 (1 << 7)
+
 #define REG_AF (*((uint16_t*)&registers.F))
 #define REG_BC (*((uint16_t*)&registers.C))
 #define REG_DE (*((uint16_t*)&registers.E))
@@ -70,3 +72,4 @@ void cpu_set_flags8(uint8_t prev, uint8_t curr, uint8_t subtraction);
 void cpu_set_flags16(uint16_t prev, uint16_t curr, uint8_t subtraction);
 
 uint8_t cpu_step();
+uint8_t cpu_execute_cb(uint8_t op, char* instruction_str);
