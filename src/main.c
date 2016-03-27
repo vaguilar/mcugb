@@ -18,8 +18,8 @@ int main(int argc, char **argv) {
 	cpu_reset();
 	REG_PC = 0x0100;
 
-	for (i = 0; i < 250000; i++) {
-		//if (REG_PC == 0x0370) { printf("BREAK\n"); break; }
+	for (i = 0; i < 400000; i++) {
+		//if (REG_PC == 0x0317) { printf("BREAK\n"); break; }
 		cycles = cpu_step();
 		gpu_step(cycles);
 		cpu_debug();
@@ -27,5 +27,5 @@ int main(int argc, char **argv) {
 		total_cycles += cycles;
 	}
 
-	mem_debug(0x9c00, 32);
+	mem_debug(0x9c00, 128);
 }

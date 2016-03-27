@@ -33,8 +33,18 @@ void mem_write8(uint16_t addr, uint8_t byte) {
 			// MEMORY_MODE = byte & 1;
 		}
 	} else {
-		MEM[addr] = byte;
-		if (addr > 0xff00) printf("Writing to MM register, [%04x] = %02x\n", addr, byte);
+		if (addr == 0xff00) {
+			/* joypad */
+			if (byte & 0x10) {
+				MEM[0xff00] = 0xdf; /* TODO actually set joypad values */
+			}
+			if (byte & 0x20) {
+				MEM[0xff00] = 0xef; /* TODO actually set joypad values */
+			}
+		} else {
+			MEM[addr] = byte;
+			if (addr > 0xff00) printf("Writing to MM register, [%04x] = %02x\n", addr, byte);
+		}
 	}
 }
 
