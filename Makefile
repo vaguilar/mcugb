@@ -16,7 +16,7 @@ COMPILER_FLAGS = -w -DDEBUG=1
 
 # LINKER_FLAGS specifies the libraries we're linking against
 # Cocoa, IOKit, and CoreVideo are needed for static GLFW3.
-LINKER_FLAGS = -framework OpenGL -lglfw3 -lglew
+LINKER_FLAGS = `sdl2-config --cflags --libs`
 
 # OBJ_NAME specifies the name of our exectuable
 OBJ_NAME = mcugb
@@ -26,7 +26,7 @@ all : $(OBJS)
 	$(CC) $(OBJS) $(INCLUDE_PATHS) $(LIBRARY_PATHS) $(COMPILER_FLAGS) $(LINKER_FLAGS) -o $(OBJ_NAME)
 
 #all: src/main.c
-#gcc -Wall -o mcugb src/*.c -DDEBUG=1 -lGL -lGLU -lglut
+#gcc -Wall -o mcugb src/*.c -DDEBUG=1
 
 clean:
 	 rm *.o

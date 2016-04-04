@@ -6,6 +6,7 @@
 #define REG_STAT 	MEM[0xff41]
 #define REG_LY 		MEM[0xff44]
 
+const uint16_t COLORS[4] = {0x0eee, 0x0999, 0x0444, 0x0000};
 uint16_t clock = 0;
 uint8_t mode = 0;
 
@@ -73,5 +74,22 @@ void gpu_step(uint16_t cycles) {
 		}
 	}
 	break;
+	}
+}
+
+void gpu_set_pixel(uint16_t *pixels, uint32_t x, uint16_t y, uint16_t color) {
+	pixels[(y * 256) + x] = color;
+}
+
+void gpu_draw_tile(uint16_t src_addr, uint16_t *dst_buffer, uint32_t x, uint32_t y) {
+	uint32_t r, c, color_index, line1, line2;
+	for (r = 0; r < 8; r++) {
+		line1 = mem_read8(src_addr++);
+		line2 = mem_read8(src_addr++);
+		for (c = 0; c < 8; c++) {
+			color_index  = (line1 >> (7 - c)) & 1;
+			color_index |= line2 & (0x80 >> c) ? 2 : 0;
+			gpu_set_pixel(dst_buffer, x+c, y+r, COLORS[color_index]);
+		}
 	}
 }

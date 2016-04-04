@@ -6,6 +6,8 @@
 #include "cpu.h"
 #include "mem.h"
 
+#define DEBUG 0
+
 void cpu_reset() {
 	memset(&registers, 0, sizeof(registers));
 }
@@ -424,6 +426,18 @@ uint8_t cpu_step() {
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "sub a, c");
 		break;
+	case 0x97:
+		/* sub a, a */
+		result = REG_A - REG_A;
+		result4 = (REG_A & 0xf) - (REG_A & 0xf);
+		cpu_set_flag(FLAG_Z, !(result & 0xff));
+		cpu_set_flag(FLAG_N, 1);
+		cpu_set_flag(FLAG_H, result4 < 0);
+		cpu_set_flag(FLAG_C, result < 0);
+		REG_A = result & 0xff;
+		cycles = 4;
+		if (DEBUG) sprintf(instruction_str, "sub a, a");
+		break;
 	case 0x98:
 		/* sbc a, b */
 		byte = REG_B;
@@ -591,7 +605,7 @@ uint8_t cpu_step() {
 		mem_write8(0xff00 + immediate, REG_A);
 		mem_debug((0xff00 + immediate) & 0xfff0, 16);
 		cycles = 12;
-		if (DEBUG) sprintf(instruction_str, "ld ($ff00+$%02x), a", immediate);
+		if (DEBUG) sprintf(instruction_str, "ld ($ff00+$%02hhx), a", immediate);
 		break;
 	case 0xe1:
 		/* pop hl */
@@ -682,7 +696,7 @@ uint8_t cpu_step() {
 		break;
 	}
 
-	printf("%04x: %s  | %d cycles\n", pc, instruction_str, cycles);
+	if (DEBUG) printf("%04x: %s  | %d cycles\n", pc, instruction_str, cycles);
 
 	if (cpu_state.interrupts) {
 		if (REG_INTERRUPT_ENABLE & INT_VBLANK) {}
@@ -718,7 +732,7 @@ uint8_t cpu_execute_cb(uint8_t op, char* instruction_str) {
 		if (DEBUG) sprintf(instruction_str, "swap a");
 		break;
 	default:
-		printf("Unimplemented instruction cb %02hx\n", op);
+		if (DEBUG) printf("Unimplemented instruction cb %02hx\n", op);
 		exit(1);
 		break;
 	}
