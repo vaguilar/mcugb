@@ -5,15 +5,18 @@
 
 #define REG_STAT 	MEM[0xff41]
 #define REG_LY 		MEM[0xff44]
+#define REG_SCY		MEM[0xff42]
+#define REG_SCX		MEM[0xff43]
 
 const uint16_t COLORS[4] = {0x0eee, 0x0999, 0x0444, 0x0000};
-uint16_t clock = 0;
+uint32_t clock = 0;
 uint8_t mode = 0;
 
 /* stubbed with code from here while I figure this out
  * http://imrannazar.com/GameBoy-Emulation-in-JavaScript:-GPU-Timings
  */
-void gpu_step(uint16_t cycles) {
+uint8_t gpu_step(uint16_t cycles, uint16_t *buffer) {
+	uint8_t redraw = 0;
 	clock += cycles;
 
 	switch(mode) {
@@ -37,7 +40,7 @@ void gpu_step(uint16_t cycles) {
 		REG_STAT = (REG_STAT & 0xfc) | mode;
 
 		// Write a scanline to the framebuffer
-		//GPU.renderscan();
+		gpu_draw_scanline();
 	}
 	break;
 
@@ -52,7 +55,8 @@ void gpu_step(uint16_t cycles) {
 			// Enter vblank
 			mode = 1;
 			REG_STAT = (REG_STAT & 0xfc) | mode;
-			//GPU._canvas.putImageData(GPU._scrn, 0, 0);
+			//gpu_draw_screen(buffer);
+			redraw = 1;
 		} else {
 			mode = 2;
 			REG_STAT = (REG_STAT & 0xfc) | mode;
@@ -75,13 +79,16 @@ void gpu_step(uint16_t cycles) {
 	}
 	break;
 	}
+
+	return redraw;
 }
 
-void gpu_set_pixel(uint16_t *pixels, uint32_t x, uint16_t y, uint16_t color) {
-	pixels[(y * 256) + x] = color;
+void gpu_set_pixel(uint16_t *pixels, uint16_t x, uint16_t y, uint16_t color) {
+	uint16_t sx = x & 0xff, sy = y & 0xff;
+	pixels[(sy * 256) + sx] = color;
 }
 
-void gpu_draw_tile(uint16_t src_addr, uint16_t *dst_buffer, uint32_t x, uint32_t y) {
+void gpu_draw_tile(uint16_t src_addr, uint16_t *dst_buffer, uint16_t x, uint16_t y) {
 	uint32_t r, c, color_index, line1, line2;
 	for (r = 0; r < 8; r++) {
 		line1 = mem_read8(src_addr++);
@@ -90,6 +97,21 @@ void gpu_draw_tile(uint16_t src_addr, uint16_t *dst_buffer, uint32_t x, uint32_t
 			color_index  = (line1 >> (7 - c)) & 1;
 			color_index |= line2 & (0x80 >> c) ? 2 : 0;
 			gpu_set_pixel(dst_buffer, x+c, y+r, COLORS[color_index]);
+		}
+	}
+}
+
+void gpu_draw_scanline() {
+	/* TODO */
+}
+
+void gpu_draw_screen(uint16_t *buffer) {
+	/* for now just draw all the tiles */
+	uint16_t r, c, tile_offset, tile_addr = 0x9800;
+	for (r = 0; r < 32; r++) {
+		for (c = 0; c < 32; c++) {
+			tile_offset = mem_read8(tile_addr++) * 16 + 0x9000;
+			gpu_draw_tile(tile_offset, buffer, c * 8 + REG_SCX, r * 8 + REG_SCY);
 		}
 	}
 }

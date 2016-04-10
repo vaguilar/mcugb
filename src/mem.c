@@ -5,10 +5,11 @@
 #include "mem.h"
 #include "cpu.h"
 
+#define DEBUG 0
 uint8_t MEM[65536] = {0};
 
 uint8_t mem_read8(uint16_t addr) {
-	if (addr == 0xff40) printf("Reading MM register, [%04x]\n", addr);
+	if (DEBUG && addr == 0xff40) printf("Reading MM register, [%04x]\n", addr);
 	if (addr >= 0xff00) {}
 	return MEM[addr];
 }
@@ -43,7 +44,7 @@ void mem_write8(uint16_t addr, uint8_t byte) {
 			}
 		} else {
 			MEM[addr] = byte;
-			if (addr > 0xff00) printf("Writing to MM register, [%04x] = %02x\n", addr, byte);
+			if (DEBUG && addr > 0xff00) printf("Writing to MM register, [%04x] = %02x\n", addr, byte);
 		}
 	}
 }

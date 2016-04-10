@@ -356,7 +356,7 @@ uint8_t cpu_step() {
 	case 0x77:
 		/* ld (hl), a */
 		mem_write8(REG_HL, REG_A);
-		mem_debug(REG_HL & 0xfff0, 16);
+		//mem_debug(REG_HL & 0xfff0, 16);
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "ld (hl), a");
 		break;
@@ -603,7 +603,7 @@ uint8_t cpu_step() {
 		/* ld ($ff00+n), a */
 		immediate = mem_fetch8();
 		mem_write8(0xff00 + immediate, REG_A);
-		mem_debug((0xff00 + immediate) & 0xfff0, 16);
+		//mem_debug((0xff00 + immediate) & 0xfff0, 16);
 		cycles = 12;
 		if (DEBUG) sprintf(instruction_str, "ld ($ff00+$%02hhx), a", immediate);
 		break;
@@ -616,7 +616,7 @@ uint8_t cpu_step() {
 	case 0xe2:
 		/* ld ($ff00+c), a */
 		mem_write8(0xff00 + REG_C, REG_A);
-		mem_debug((0xff00 + REG_C) & 0xfff0, 16);
+		//mem_debug((0xff00 + REG_C) & 0xfff0, 16);
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "ld ($ff00+c), a");
 		break;

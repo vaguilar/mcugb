@@ -40,29 +40,24 @@ int init_win() {
 int main(int argc, char **argv) {
 	FILE *fp;
 	uint32_t i, j, cycles, total_cycles;
+	uint16_t buffer[256 * 256] = {0};
+	uint8_t redraw = 0;
+	SDL_Event Event;
 
 	run_tests();
 
-	fp = fopen("SPACE.GB", "r");
-	fread(MEM, 32768-1, 1, fp);
+	if (argc < 2) {
+		printf("usage: ./mcugb romfile");
+		exit(0);
+	}
+
+	fp = fopen(argv[1], "r");
+	fread(MEM, 32768, 1, fp);
 	fclose(fp);
 
 	cpu_reset();
 	REG_PC = 0x0100;
 
-	for (i = 0; i < 100000; i++) {
-		//if (REG_PC == 0x039f) { printf("BREAK\n"); break; }
-		cycles = cpu_step();
-		gpu_step(cycles);
-		cpu_debug();
-
-		total_cycles += cycles;
-	}
-
-	mem_debug(0x9000, 128);
-	mem_debug(0x9800, 128);
-
-	uint16_t buffer[256 * 256] = {0};
 	memset(buffer, 0, 256 * 256);
 
 	if(init_win() == 0) {
@@ -70,29 +65,39 @@ int main(int argc, char **argv) {
 		return 0;
 	}
 
-	/* draw tiles at 0x9000 to buffer for now */
+	while (1) {
+		//if (REG_PC == 0x039f) { printf("BREAK\n"); break; }
+		cycles = cpu_step();
+		redraw = gpu_step(cycles, buffer);
+		//cpu_debug();
+
+		SDL_PollEvent(&Event);
+		if(Event.type == SDL_QUIT) break;
+
+		/* draw buffer */
+		if (redraw == 1) {
+			gpu_draw_screen(buffer);
+			SDL_UpdateTexture(Texture, NULL, buffer, 256 * sizeof(uint16_t));
+			SDL_RenderClear(Renderer);
+			SDL_RenderCopy(Renderer, Texture, NULL, NULL);
+			SDL_RenderPresent(Renderer);
+		}
+
+		total_cycles += cycles;
+	}
+
+	cpu_debug();
+	mem_debug(0x9000, 128);
+	mem_debug(0x9800, 128);
+
+	/* draw tiles at 0x9000 to buffer for now
 	for (j = 0; j < 8; j++) {
 		for (i = 0; i < 16; i++) {
 			int offset = (i * 16) + (j * 256);
 			gpu_draw_tile(0x9000 + offset, buffer, i * 8, j * 8);
 		}
 	}
-
-	/* write buffer */
-	SDL_UpdateTexture(Texture, NULL, buffer, 256 * sizeof(uint16_t));
-
-	SDL_Event Event;
-	while(1) {
-		SDL_PollEvent(&Event);
-		if(Event.type == SDL_QUIT) break;
-		//Loop();
-		//Render();
-		//SDL_SetRenderDrawColor(Renderer, 0x00, 0x00, 0x00, 0x00);
-		SDL_RenderClear(Renderer);
-		SDL_RenderCopy(Renderer, Texture, NULL, NULL);
-		SDL_RenderPresent(Renderer);
-		SDL_Delay(1); // Breath
-	}
+	*/
 
 	SDL_DestroyTexture(Texture);
 	SDL_DestroyRenderer(Renderer);
