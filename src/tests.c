@@ -56,6 +56,7 @@ uint32_t test0() {
 }
 
 uint32_t test1() {
+	uint16_t i;
 	uint8_t program[] = {
 		0x3e, 0x0d, // LD A, 0x0d
 		0xc6, 0x01, // ADD A, 0x01
@@ -63,7 +64,6 @@ uint32_t test1() {
 		0xd6, 0x10, // SUB A, 0x10
 		0x76,		// HALT
 	};
-	uint16_t i;
 
 	cpu_reset();
 	mem_load_program(0, program, sizeof(program));
@@ -76,6 +76,31 @@ uint32_t test1() {
 	return REG_A == 1;
 }
 
+/* testing rlca flags */
+uint32_t test2() {
+	uint16_t i;
+	uint8_t program[] = {
+		0x3e, 0x81, // ld a, 0x00
+		0x07,		// rlca
+		0x07,		// rlca
+		0x76,		// halt
+	};
+
+	cpu_reset();
+	mem_load_program(0, program, sizeof(program));
+
+	for (i = 0; i < 3; i++) {
+		cpu_step();
+		cpu_debug();
+	}
+
+	if (REG_A != 0x00 || REG_F | FLAG_Z == 0) {
+		printf("Register A should be 0x00, Z flag should not be set\n");
+		return 0;
+	}
+	return 1;
+}
+
 void run_tests() {
 	uint32_t result;
 
@@ -84,4 +109,7 @@ void run_tests() {
 
 	result = test1();
 	printf("test1 %s\n\n", result ? "PASSED" : "FAILED");
+
+	result = test1();
+	printf("test2 %s\n\n", result ? "PASSED" : "FAILED");
 }
