@@ -63,6 +63,8 @@ struct {
 	uint8_t interrupt_flag;
 } cpu_state;
 
+uint8_t joypad_states[2];
+
 void cpu_reset();
 void cpu_debug();
 void cpu_push_stack(uint16_t word);
@@ -73,3 +75,6 @@ void cpu_set_flags16(uint16_t prev, uint16_t curr, uint8_t subtraction);
 
 uint8_t cpu_step();
 uint8_t cpu_execute_cb(uint8_t op, char* instruction_str);
+
+void cpu_set_joypad(uint8_t directional, uint8_t button);
+void cpu_unset_joypad(uint8_t directional, uint8_t button);
