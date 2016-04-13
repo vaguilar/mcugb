@@ -5,7 +5,7 @@
 #include "mem.h"
 #include "cpu.h"
 
-#define DEBUG 0
+#define DEBUG 1
 uint8_t MEM[65536] = {0};
 
 uint8_t mem_read8(uint16_t addr) {
@@ -20,6 +20,7 @@ uint16_t mem_read16(uint16_t addr) {
 }
 
 void mem_write8(uint16_t addr, uint8_t byte) {
+	uint8_t i, dma_addr;
 	if (addr < 0x8000) {
 		if (addr < 0x2000) {
 			//
@@ -37,10 +38,18 @@ void mem_write8(uint16_t addr, uint8_t byte) {
 		if (addr == 0xff00) {
 			/* joypad */
 			if (byte & 0x10) {
-				MEM[0xff00] = 0xdf; /* TODO actually set joypad values */
+				/* directional */
+				MEM[0xff00] = 0xd0 | (~joypad_states[1]);
+			} else if (byte & 0x20) {
+				/* non-directional */
+				MEM[0xff00] = 0xe0 | (~joypad_states[0]);
 			}
-			if (byte & 0x20) {
-				MEM[0xff00] = 0xef; /* TODO actually set joypad values */
+		} else if (addr == 0xff46) {
+			/* dma */
+			dma_addr = byte << 8;
+			printf("requesting DMA transfer");
+			for (i = 0; i < 40; i++) {
+				MEM[0xfe00+i] = MEM[dma_addr+i];
 			}
 		} else {
 			MEM[addr] = byte;
@@ -51,8 +60,12 @@ void mem_write8(uint16_t addr, uint8_t byte) {
 
 void mem_write16(uint16_t addr, uint16_t word) {
 	//((uint16_t*) (&MEM[addr]))[0] = word;
-	MEM[addr+1] = word >> 8;
-	MEM[addr] = word & 0xff;
+
+	//MEM[addr+1] = word >> 8;
+	//MEM[addr] = word & 0xff;
+
+	mem_write8(addr, word & 0xff);
+	mem_write8(addr+1, word >> 8);
 }
 
 uint8_t mem_fetch8() {

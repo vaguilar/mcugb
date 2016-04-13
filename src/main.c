@@ -12,6 +12,8 @@ SDL_Window* Window = NULL;
 SDL_Renderer* Renderer = NULL;
 SDL_Surface* PrimarySurface = NULL;
 SDL_Texture* Texture = NULL;
+SDL_Rect SrcRect;
+SDL_Rect DestRect;
 
 int init_win() {
 	if(SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -19,21 +21,25 @@ int init_win() {
 		return 0;
 	}
 
-	if (SDL_CreateWindowAndRenderer(256, 256, SDL_WINDOW_RESIZABLE, &Window, &Renderer)) {
+	if (SDL_CreateWindowAndRenderer(160, 144, SDL_WINDOW_RESIZABLE, &Window, &Renderer)) {
 		printf("Unable to create SDL Renderer: %s\n", SDL_GetError());
 		return 0;
 	}
 
-	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");  // make the scaled rendering look smoother.
-	SDL_RenderSetLogicalSize(Renderer, 256, 256);
+	/* set 2x */
+	SDL_SetWindowSize(Window, 160 * 2, 144 * 2);
+
+	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
+	SDL_RenderSetLogicalSize(Renderer, 160, 144);
 
 	SDL_SetWindowTitle(Window, "mcugb");
-	Texture = SDL_CreateTexture(Renderer, SDL_PIXELFORMAT_ARGB4444, SDL_TEXTUREACCESS_STREAMING, 256,256);
+	Texture = SDL_CreateTexture(Renderer, SDL_PIXELFORMAT_ARGB4444, SDL_TEXTUREACCESS_STREAMING, 256, 256);
 
 	//PrimarySurface = SDL_GetWindowSurface(Window);
 	SDL_SetRenderDrawColor(Renderer, 0x30, 0x30, 0x30, 0xFF);
 	SDL_RenderClear(Renderer);
 	SDL_RenderPresent(Renderer);
+
 	return 1;
 }
 
@@ -72,14 +78,24 @@ int main(int argc, char **argv) {
 		//cpu_debug();
 
 		SDL_PollEvent(&Event);
-		if(Event.type == SDL_QUIT) break;
+		if (Event.type == SDL_QUIT) break;
 
 		/* draw buffer */
 		if (redraw == 1) {
 			gpu_draw_screen(buffer);
 			SDL_UpdateTexture(Texture, NULL, buffer, 256 * sizeof(uint16_t));
 			SDL_RenderClear(Renderer);
-			SDL_RenderCopy(Renderer, Texture, NULL, NULL);
+
+			SrcRect.x = 0;
+			SrcRect.y = 0;
+			SrcRect.w = 256;
+			SrcRect.h = 256;
+			DestRect.x = 0;
+			DestRect.y = 0;
+			DestRect.w = 256;
+			DestRect.h = 256;
+			SDL_RenderCopy(Renderer, Texture, &SrcRect, &DestRect);
+
 			SDL_RenderPresent(Renderer);
 		}
 
@@ -89,15 +105,8 @@ int main(int argc, char **argv) {
 	cpu_debug();
 	mem_debug(0x9000, 128);
 	mem_debug(0x9800, 128);
-
-	/* draw tiles at 0x9000 to buffer for now
-	for (j = 0; j < 8; j++) {
-		for (i = 0; i < 16; i++) {
-			int offset = (i * 16) + (j * 256);
-			gpu_draw_tile(0x9000 + offset, buffer, i * 8, j * 8);
-		}
-	}
-	*/
+	printf("\n");
+	mem_debug(0xfe00, 128);
 
 	SDL_DestroyTexture(Texture);
 	SDL_DestroyRenderer(Renderer);

@@ -3,12 +3,7 @@
 #include "gpu.h"
 #include "mem.h"
 
-#define REG_STAT 	MEM[0xff41]
-#define REG_LY 		MEM[0xff44]
-#define REG_SCY		MEM[0xff42]
-#define REG_SCX		MEM[0xff43]
-
-const uint16_t COLORS[4] = {0x0eee, 0x0999, 0x0444, 0x0000};
+const uint16_t COLORS[4] = {0x0eef, 0x099a, 0x0445, 0x0001};
 uint32_t clock = 0;
 uint8_t mode = 0;
 
@@ -83,9 +78,10 @@ uint8_t gpu_step(uint16_t cycles, uint16_t *buffer) {
 	return redraw;
 }
 
-void gpu_set_pixel(uint16_t *pixels, uint16_t x, uint16_t y, uint16_t color) {
+void gpu_set_pixel(uint16_t *pixels, uint8_t x, uint8_t y, uint16_t color) {
 	uint16_t sx = x & 0xff, sy = y & 0xff;
 	pixels[(sy * 256) + sx] = color;
+	//pixels[(y << 8) | x] = color;
 }
 
 void gpu_draw_tile(uint16_t src_addr, uint16_t *dst_buffer, uint16_t x, uint16_t y) {
@@ -101,17 +97,65 @@ void gpu_draw_tile(uint16_t src_addr, uint16_t *dst_buffer, uint16_t x, uint16_t
 	}
 }
 
+void gpu_draw_sprite(uint16_t src_addr, uint16_t *dst_buffer, uint16_t x, uint16_t y) {
+	uint32_t r, c, color_index, line1, line2;
+	for (r = 0; r < 8; r++) {
+		line1 = mem_read8(src_addr++);
+		line2 = mem_read8(src_addr++);
+		for (c = 0; c < 8; c++) {
+			color_index  = (line1 >> (7 - c)) & 1;
+			color_index |= line2 & (0x80 >> c) ? 2 : 0;
+			if (color_index > 0) {
+				gpu_set_pixel(dst_buffer, x+c, y+r, COLORS[color_index]);
+			}
+		}
+	}
+}
+
 void gpu_draw_scanline() {
 	/* TODO */
 }
 
+uint16_t get_tile_addr(uint8_t id) {
+	int8_t sid = (int8_t) id;
+	if (REG_LCDC & LCDC_BG_TILE_DATA) {
+		return (id * 16) + 0x8000;
+	} else {
+		return (sid * 16) + 0x9000;
+	}
+}
+
 void gpu_draw_screen(uint16_t *buffer) {
 	/* for now just draw all the tiles */
-	uint16_t r, c, tile_offset, tile_addr = 0x9800;
+	uint16_t r, c, tile_id, tile_addr, tile_ptr = 0x9800;
+
+	if (REG_LCDC & LCDC_BG_TILE_MAP_SELECT) {
+		tile_ptr = 0x9c00;
+	}
+
 	for (r = 0; r < 32; r++) {
 		for (c = 0; c < 32; c++) {
-			tile_offset = mem_read8(tile_addr++) * 16 + 0x9000;
-			gpu_draw_tile(tile_offset, buffer, c * 8 + REG_SCX, r * 8 + REG_SCY);
+			tile_id = mem_read8(tile_ptr++);
+			tile_addr = get_tile_addr(tile_id);
+			gpu_draw_tile(tile_addr, buffer, c * 8 - REG_SCX, r * 8 - REG_SCY);
+		}
+	}
+
+	uint8_t x, y, id, flags;
+	uint16_t sprite_addr = 0xfe00;
+	if (REG_LCDC & LCDC_SHOW_SPRITES) {
+		for (r = 0; r < 40; r++) {
+			x = mem_read8(sprite_addr++);
+			y = mem_read8(sprite_addr++);
+			id = mem_read8(sprite_addr++);
+			flags = mem_read8(sprite_addr++);
+
+			if (x == 0 && y == 0) continue;
+			gpu_draw_sprite(id * 16 + 0x8000, buffer, x - REG_SCX, y - REG_SCY);
+
+			if (REG_LCDC & LCDC_SPRITE_DOUBLE_HEIGHT) {
+				gpu_draw_sprite(id * 16 + 0x8000 + 16, buffer, x - REG_SCX, y + 8 - REG_SCY);
+			}
 		}
 	}
 }
