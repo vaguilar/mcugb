@@ -20,7 +20,6 @@ uint16_t mem_read16(uint16_t addr) {
 }
 
 void mem_write8(uint16_t addr, uint8_t byte) {
-	uint8_t i, dma_addr;
 	if (addr < 0x8000) {
 		if (addr < 0x2000) {
 			//
@@ -39,18 +38,14 @@ void mem_write8(uint16_t addr, uint8_t byte) {
 			/* joypad */
 			if (byte & 0x10) {
 				/* directional */
-				MEM[0xff00] = 0xd0 | (~joypad_states[1]);
+				MEM[0xff00] = 0xd0 | cpu_joypad_states[1];
 			} else if (byte & 0x20) {
 				/* non-directional */
-				MEM[0xff00] = 0xe0 | (~joypad_states[0]);
+				MEM[0xff00] = 0xe0 | cpu_joypad_states[0];
 			}
 		} else if (addr == 0xff46) {
 			/* dma */
-			dma_addr = byte << 8;
-			printf("requesting DMA transfer");
-			for (i = 0; i < 40; i++) {
-				MEM[0xfe00+i] = MEM[dma_addr+i];
-			}
+			mem_dma(byte << 8);
 		} else {
 			MEM[addr] = byte;
 			if (DEBUG && addr > 0xff00) printf("Writing to MM register, [%04x] = %02x\n", addr, byte);
@@ -78,6 +73,14 @@ uint16_t mem_fetch16() {
 	uint16_t word = mem_read16(REG_PC);
 	REG_PC += 2;
 	return word;
+}
+
+void mem_dma(uint16_t addr) {
+	uint8_t i;
+	printf("requesting DMA transfer $%04x \n", addr);
+	for (i = 0; i < 40; i++) {
+		MEM[0xfe00+i] = MEM[addr+i];
+	}
 }
 
 void mem_load_program(uint16_t addr, uint8_t *program, uint16_t size) {

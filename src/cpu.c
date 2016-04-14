@@ -10,6 +10,7 @@
 
 void cpu_reset() {
 	memset(&registers, 0, sizeof(registers));
+	memset(&cpu_joypad_states, 0xf, sizeof(cpu_joypad_states));
 }
 
 void cpu_push_stack(uint16_t word) {
@@ -21,6 +22,14 @@ uint16_t cpu_pop_stack() {
 	uint16_t result = mem_read16(REG_SP);
 	REG_SP += 2;
 	return result;
+}
+
+void cpu_set_interrupt(uint8_t interrupt) {
+	REG_INTERRUPT_ENABLE |= interrupt;
+}
+
+void cpu_unset_interrupt(uint8_t interrupt) {
+	REG_INTERRUPT_ENABLE &= ~interrupt;
 }
 
 /* returns num of cycles */
@@ -335,6 +344,12 @@ uint8_t cpu_step() {
 		if (DEBUG) sprintf(instruction_str, "ld a, $%02x", REG_A);
 		cycles = 8;
 		break;
+	case 0x46:
+		/* ld b, (hl) */
+		REG_B = mem_read8(REG_HL);
+		cycles = 8;
+		if (DEBUG) sprintf(instruction_str, "ld b, (hl)");
+		break;
 	case 0x47:
 		/* ld b, a */
 		REG_B = REG_A;
@@ -346,6 +361,12 @@ uint8_t cpu_step() {
 		REG_C = REG_D;
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "ld c, d");
+		break;
+	case 0x4e:
+		/* ld c, (hl) */
+		REG_C = mem_read8(REG_HL);
+		cycles = 8;
+		if (DEBUG) sprintf(instruction_str, "ld c, (hl)");
 		break;
 	case 0x4f:
 		/* ld c, a */
@@ -706,6 +727,13 @@ uint8_t cpu_step() {
 		cycles = 16;
 		if (DEBUG) sprintf(instruction_str, "push de");
 		break;
+	case 0xd9:
+		/* reti */
+		REG_PC = cpu_pop_stack();
+		cpu_state.interrupts = 1;
+		cycles = 8;
+		if (DEBUG) sprintf(instruction_str, "reti");
+		break;
 	case 0xe0:
 		/* ld ($ff00+n), a */
 		immediate = mem_fetch8();
@@ -780,6 +808,12 @@ uint8_t cpu_step() {
 		cycles = 12;
 		if (DEBUG) sprintf(instruction_str, "ld a, ($ff00+$%02x)", immediate);
 		break;
+	case 0xf1:
+		/* pop af */
+		REG_AF = cpu_pop_stack();
+		cycles = 12;
+		if (DEBUG) sprintf(instruction_str, "pop af");
+		break;
 	case 0xf3:
 		/* disable int */
 		cpu_state.interrupts = 0;
@@ -819,7 +853,7 @@ uint8_t cpu_step() {
 		break;
 
 	default:
-		printf("Unimplemented instruction %02hx\n", op);
+		printf("Unimplemented instruction %02hx at $%04x\n", op, REG_PC - 1);
 		exit(1);
 		break;
 	}
@@ -827,7 +861,17 @@ uint8_t cpu_step() {
 	if (DEBUG) printf("%04x: %s  | %d cycles\n", pc, instruction_str, cycles);
 
 	if (cpu_state.interrupts) {
-		if (REG_INTERRUPT_ENABLE & INT_VBLANK) {}
+		if (REG_INTERRUPT_ENABLE & INT_VBLANK) {
+			cpu_state.interrupts = 0;
+			cpu_push_stack(REG_PC);
+			REG_PC = 0x0040;
+			cpu_unset_interrupt(INT_VBLANK);
+		} else if (REG_INTERRUPT_ENABLE & INT_JOYPAD) {
+			cpu_state.interrupts = 0;
+			cpu_push_stack(REG_PC);
+			REG_PC = 0x0060;
+			cpu_unset_interrupt(INT_JOYPAD);
+		}
 	}
 	return cycles;
 }
@@ -883,11 +927,12 @@ uint8_t cpu_execute_cb(uint8_t op, char* instruction_str) {
 }
 
 void cpu_set_joypad(uint8_t directional, uint8_t button) {
-	joypad_states[directional] |= (1 << button);
+	cpu_joypad_states[directional] &= ~(1 << button);
+	cpu_set_interrupt(INT_JOYPAD);
 }
 
 void cpu_unset_joypad(uint8_t directional, uint8_t button) {
-	joypad_states[directional] &= ~(1 << button);
+	cpu_joypad_states[directional] |= 1 << button;
 }
 
 void cpu_debug() {

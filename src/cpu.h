@@ -18,9 +18,7 @@
 #define REG_H registers.H
 #define REG_L registers.L
 
-#define REG_INTERRUPT_ENABLE MEM[0xffff]
-
-#define INT_PIN    0x10
+#define INT_JOYPAD 0x10
 #define INT_SERIAL 0x08
 #define INT_TIMER  0x04
 #define INT_LCDC   0x02
@@ -63,7 +61,7 @@ struct {
 	uint8_t interrupt_flag;
 } cpu_state;
 
-uint8_t joypad_states[2];
+uint8_t cpu_joypad_states[2];
 
 void cpu_reset();
 void cpu_debug();

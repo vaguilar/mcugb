@@ -79,6 +79,39 @@ int main(int argc, char **argv) {
 
 		SDL_PollEvent(&Event);
 		if (Event.type == SDL_QUIT) break;
+		if (Event.type == SDL_KEYDOWN) {
+			if (Event.key.type == SDL_KEYDOWN) {
+				switch (Event.key.keysym.sym) {
+				case SDLK_DOWN:
+					cpu_set_joypad(1, 3);
+					break;
+				case SDLK_UP:
+					cpu_set_joypad(1, 2);
+					break;
+				case SDLK_LEFT:
+					cpu_set_joypad(1, 1);
+					break;
+				case SDLK_RIGHT:
+					cpu_set_joypad(1, 0);
+					break;
+				}
+			} else {
+				switch (Event.key.keysym.sym) {
+				case SDLK_DOWN:
+					cpu_unset_joypad(1, 3);
+					break;
+				case SDLK_UP:
+					cpu_unset_joypad(1, 2);
+					break;
+				case SDLK_LEFT:
+					cpu_unset_joypad(1, 1);
+					break;
+				case SDLK_RIGHT:
+					cpu_unset_joypad(1, 0);
+					break;
+				}
+			}
+		}
 
 		/* draw buffer */
 		if (redraw == 1) {

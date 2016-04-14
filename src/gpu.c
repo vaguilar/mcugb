@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include "gpu.h"
+#include "cpu.h"
 #include "mem.h"
 
 const uint16_t COLORS[4] = {0x0eef, 0x099a, 0x0445, 0x0001};
@@ -50,6 +51,7 @@ uint8_t gpu_step(uint16_t cycles, uint16_t *buffer) {
 			// Enter vblank
 			mode = 1;
 			REG_STAT = (REG_STAT & 0xfc) | mode;
+			cpu_set_interrupt(INT_VBLANK);
 			//gpu_draw_screen(buffer);
 			redraw = 1;
 		} else {
@@ -145,16 +147,16 @@ void gpu_draw_screen(uint16_t *buffer) {
 	uint16_t sprite_addr = 0xfe00;
 	if (REG_LCDC & LCDC_SHOW_SPRITES) {
 		for (r = 0; r < 40; r++) {
-			x = mem_read8(sprite_addr++);
 			y = mem_read8(sprite_addr++);
+			x = mem_read8(sprite_addr++);
 			id = mem_read8(sprite_addr++);
 			flags = mem_read8(sprite_addr++);
 
 			if (x == 0 && y == 0) continue;
-			gpu_draw_sprite(id * 16 + 0x8000, buffer, x - REG_SCX, y - REG_SCY);
+			gpu_draw_sprite(id * 16 + 0x8000, buffer, x, y);
 
 			if (REG_LCDC & LCDC_SPRITE_DOUBLE_HEIGHT) {
-				gpu_draw_sprite(id * 16 + 0x8000 + 16, buffer, x - REG_SCX, y + 8 - REG_SCY);
+				gpu_draw_sprite(id * 16 + 0x8000 + 16, buffer, x, y + 8);
 			}
 		}
 	}
