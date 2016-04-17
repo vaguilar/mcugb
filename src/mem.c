@@ -5,7 +5,7 @@
 #include "mem.h"
 #include "cpu.h"
 
-#define DEBUG 1
+#define DEBUG 0
 uint8_t MEM[65536] = {0};
 
 uint8_t mem_read8(uint16_t addr) {
@@ -37,11 +37,11 @@ void mem_write8(uint16_t addr, uint8_t byte) {
 		if (addr == 0xff00) {
 			/* joypad */
 			if (byte & 0x10) {
-				/* directional */
-				MEM[0xff00] = 0xd0 | cpu_joypad_states[1];
-			} else if (byte & 0x20) {
 				/* non-directional */
-				MEM[0xff00] = 0xe0 | cpu_joypad_states[0];
+				MEM[0xff00] = 0xd0 | cpu_joypad_states[0];
+			} else if (byte & 0x20) {
+				/* directional */
+				MEM[0xff00] = 0xe0 | cpu_joypad_states[1];
 			}
 		} else if (addr == 0xff46) {
 			/* dma */

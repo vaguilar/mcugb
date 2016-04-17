@@ -72,15 +72,15 @@ int main(int argc, char **argv) {
 	}
 
 	while (1) {
-		//if (REG_PC == 0x039f) { printf("BREAK\n"); break; }
+		//if (REG_PC == 0x033b) { printf("BREAK\n"); break; }
 		cycles = cpu_step();
 		redraw = gpu_step(cycles, buffer);
 		//cpu_debug();
 
-		SDL_PollEvent(&Event);
-		if (Event.type == SDL_QUIT) break;
-		if (Event.type == SDL_KEYDOWN) {
-			if (Event.key.type == SDL_KEYDOWN) {
+		if (SDL_PollEvent(&Event) ) {
+			if (Event.type == SDL_QUIT) {
+				break;
+			} else if (Event.type == SDL_KEYDOWN) {
 				switch (Event.key.keysym.sym) {
 				case SDLK_DOWN:
 					cpu_set_joypad(1, 3);
@@ -94,8 +94,20 @@ int main(int argc, char **argv) {
 				case SDLK_RIGHT:
 					cpu_set_joypad(1, 0);
 					break;
+				case SDLK_v:
+					cpu_set_joypad(0, 3);
+					break;
+				case SDLK_c:
+					cpu_set_joypad(0, 2);
+					break;
+				case SDLK_z:
+					cpu_set_joypad(0, 1);
+					break;
+				case SDLK_x:
+					cpu_set_joypad(0, 0);
+					break;
 				}
-			} else {
+			} else if (Event.type == SDL_KEYUP) {
 				switch (Event.key.keysym.sym) {
 				case SDLK_DOWN:
 					cpu_unset_joypad(1, 3);
@@ -108,6 +120,18 @@ int main(int argc, char **argv) {
 					break;
 				case SDLK_RIGHT:
 					cpu_unset_joypad(1, 0);
+					break;
+				case SDLK_v:
+					cpu_unset_joypad(0, 3);
+					break;
+				case SDLK_c:
+					cpu_unset_joypad(0, 2);
+					break;
+				case SDLK_z:
+					cpu_unset_joypad(0, 1);
+					break;
+				case SDLK_x:
+					cpu_unset_joypad(0, 0);
 					break;
 				}
 			}
@@ -138,6 +162,8 @@ int main(int argc, char **argv) {
 	cpu_debug();
 	mem_debug(0x9000, 128);
 	mem_debug(0x9800, 128);
+	printf("\n");
+	mem_debug(0xff40, 16);
 	printf("\n");
 	mem_debug(0xfe00, 128);
 
