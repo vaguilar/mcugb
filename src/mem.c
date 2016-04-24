@@ -4,12 +4,14 @@
 
 #include "mem.h"
 #include "cpu.h"
+#include "gpu.h"
 
 #define DEBUG 0
 uint8_t MEM[65536] = {0};
 
 uint8_t mem_read8(uint16_t addr) {
 	if (DEBUG && addr == 0xff40) printf("Reading MM register, [%04x]\n", addr);
+	if (DEBUG && addr == 0xff44) printf("Reading LY register, [%04x] = %02x\n", addr, MEM[addr]);
 	if (addr >= 0xff00) {}
 	return MEM[addr];
 }
@@ -43,9 +45,21 @@ void mem_write8(uint16_t addr, uint8_t byte) {
 				/* directional */
 				MEM[0xff00] = 0xe0 | cpu_joypad_states[1];
 			}
+		} else if (addr == 0xff40) {
+			/* lcdc */
+			REG_LCDC = byte;
+			if (BIT0) {} /* display bg? */
+			if (BIT1) {} /* display sprite? */
+
+		} else if (addr == 0xff41) {
+			/* lcdc stat */
+			REG_STAT = byte;
+
 		} else if (addr == 0xff46) {
 			/* dma */
+			REG_DMA = byte;
 			mem_dma(byte << 8);
+
 		} else {
 			MEM[addr] = byte;
 			if (DEBUG && addr > 0xff00) printf("Writing to MM register, [%04x] = %02x\n", addr, byte);
@@ -77,7 +91,7 @@ uint16_t mem_fetch16() {
 
 void mem_dma(uint16_t addr) {
 	uint8_t i;
-	printf("requesting DMA transfer $%04x \n", addr);
+	if (DEBUG) printf("requesting DMA transfer $%04x \n", addr);
 	for (i = 0; i < 40; i++) {
 		MEM[0xfe00+i] = MEM[addr+i];
 	}

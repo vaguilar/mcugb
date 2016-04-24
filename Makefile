@@ -12,7 +12,7 @@ LIBRARY_PATHS = -L/usr/local/lib -I/opt/X11/lib
 
 # COMPILER_FLAGS specifies the additional compilation options we're using
 # -w suppresses all warnings
-COMPILER_FLAGS = -w -DDEBUG=1
+COMPILER_FLAGS = -O3 -w -DDEBUG=1
 
 # LINKER_FLAGS specifies the libraries we're linking against
 # Cocoa, IOKit, and CoreVideo are needed for static GLFW3.

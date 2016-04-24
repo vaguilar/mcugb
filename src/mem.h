@@ -1,5 +1,6 @@
 #pragma once
 
+#define REG_INTERRUPT_FLAG	 MEM[0xff0f]
 #define REG_INTERRUPT_ENABLE MEM[0xffff]
 
 uint8_t  mem_read8(uint16_t addr);

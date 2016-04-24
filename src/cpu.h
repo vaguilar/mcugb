@@ -1,5 +1,7 @@
 #pragma once
 
+#define BIT0 (1 << 0)
+#define BIT1 (1 << 1)
 #define BIT7 (1 << 7)
 
 #define REG_AF (*((uint16_t*)&registers.F))

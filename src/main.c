@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
 	}
 
 	while (1) {
-		//if (REG_PC == 0x033b) { printf("BREAK\n"); break; }
+		//if (REG_PC == 0x17f) { printf("BREAK\n"); break; }
 		cycles = cpu_step();
 		redraw = gpu_step(cycles, buffer);
 		//cpu_debug();
@@ -166,6 +166,14 @@ int main(int argc, char **argv) {
 	mem_debug(0xff40, 16);
 	printf("\n");
 	mem_debug(0xfe00, 128);
+	//printf("STACK:\n");
+	//mem_debug(REG_SP, 0xffff - REG_SP > 64 ? 64 : 0xffff - REG_SP);
+	mem_debug(0xc0a4, 16);
+	mem_debug(0x98a0, 16);
+	printf("LCDC: $%04x\n", REG_LCDC);
+	printf("STAT: $%04x\n", REG_STAT);
+	printf("REG IE: $%04x\n", REG_INTERRUPT_ENABLE);
+	printf("REG IF: $%04x\n", REG_INTERRUPT_FLAG);
 
 	SDL_DestroyTexture(Texture);
 	SDL_DestroyRenderer(Renderer);
