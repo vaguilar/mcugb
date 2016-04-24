@@ -2,6 +2,7 @@
 
 #define BIT0 (1 << 0)
 #define BIT1 (1 << 1)
+#define BIT2 (1 << 2)
 #define BIT7 (1 << 7)
 
 #define REG_AF (*((uint16_t*)&registers.F))
@@ -61,6 +62,8 @@ struct {
 	uint8_t interrupts;
 	uint8_t interrupt_enable;
 	uint8_t interrupt_flag;
+	uint16_t timer_cycles;
+	uint16_t divider_cycles;
 } cpu_state;
 
 uint8_t cpu_joypad_states[2];
@@ -73,6 +76,7 @@ uint16_t cpu_pop_stack();
 void cpu_set_flags8(uint8_t prev, uint8_t curr, uint8_t subtraction);
 void cpu_set_flags16(uint16_t prev, uint16_t curr, uint8_t subtraction);
 
+void cpu_update_timer(uint8_t cycles);
 uint8_t cpu_step();
 uint8_t cpu_execute_cb(uint8_t op, char* instruction_str);
 

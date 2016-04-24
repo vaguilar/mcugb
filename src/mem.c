@@ -45,6 +45,10 @@ void mem_write8(uint16_t addr, uint8_t byte) {
 				/* directional */
 				MEM[0xff00] = 0xe0 | cpu_joypad_states[1];
 			}
+		} else if (addr == 0xff04) {
+			/* divider register */
+			REG_DIV = 0;
+
 		} else if (addr == 0xff40) {
 			/* lcdc */
 			REG_LCDC = byte;

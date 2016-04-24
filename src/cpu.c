@@ -9,6 +9,8 @@
 
 #define DEBUG 0
 
+uint16_t TAC_SELECT[] = {1024, 16, 64, 256};
+
 void cpu_reset() {
 	memset(&registers, 0, sizeof(registers));
 	memset(&cpu_joypad_states, 0xf, sizeof(cpu_joypad_states));
@@ -160,6 +162,29 @@ void rst(uint16_t addr) {
 
 void res(uint8_t b, uint8_t *reg) {
 	*reg = *reg & ~(1 << b);
+}
+
+void cpu_update_timer(uint8_t cycles) {
+	uint8_t mode = REG_TAC & (BIT0 | BIT1);
+	uint8_t timer_on = REG_TAC & BIT2;
+	if (timer_on) {
+		cpu_state.timer_cycles += cycles;
+		if (cpu_state.timer_cycles > TAC_SELECT[mode]) {
+			cpu_state.timer_cycles -= TAC_SELECT[mode];
+			REG_TIMA++;
+
+			if (REG_TIMA == 0) {
+				REG_TIMA = REG_TMA;
+				cpu_set_interrupt(INT_TIMER);
+			}
+		}
+	}
+
+	cpu_state.divider_cycles += cycles;
+	if (cpu_state.divider_cycles > 256) {
+		cpu_state.divider_cycles -= 256;
+		REG_DIV++;
+	}
 }
 
 /* returns num of cycles */
@@ -1583,6 +1608,10 @@ uint8_t cpu_step() {
 			cpu_unset_interrupt(INT_JOYPAD);
 		}
 	}
+
+	/* update timer */
+	cpu_update_timer(cycles);
+
 	return cycles;
 }
 

@@ -1,7 +1,11 @@
 #pragma once
 
-#define REG_INTERRUPT_FLAG	 MEM[0xff0f]
-#define REG_INTERRUPT_ENABLE MEM[0xffff]
+#define REG_DIV					MEM[0xff04]
+#define REG_TIMA				MEM[0xff05]
+#define REG_TMA					MEM[0xff06]
+#define REG_TAC					MEM[0xff07]
+#define REG_INTERRUPT_FLAG		MEM[0xff0f]
+#define REG_INTERRUPT_ENABLE	MEM[0xffff]
 
 uint8_t  mem_read8(uint16_t addr);
 uint16_t mem_read16(uint16_t addr);
