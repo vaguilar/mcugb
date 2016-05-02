@@ -78,6 +78,7 @@ void cpu_set_flags16(uint16_t prev, uint16_t curr, uint8_t subtraction);
 
 void cpu_update_timer(uint8_t cycles);
 uint8_t cpu_step();
+uint8_t cpu_execute(uint8_t op, char* instruction_str);
 uint8_t cpu_execute_cb(uint8_t op, char* instruction_str);
 
 void cpu_set_joypad(uint8_t directional, uint8_t button);

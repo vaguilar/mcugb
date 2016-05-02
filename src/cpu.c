@@ -164,6 +164,26 @@ void res(uint8_t b, uint8_t *reg) {
 	*reg = *reg & ~(1 << b);
 }
 
+void rrc(uint8_t *reg) {
+	/* rotate right, old bit 0 to carry */
+	uint8_t new_carry = *reg & 1;
+	*reg = (*reg >> 1) | (new_carry ? BIT7 : 0);
+	cpu_set_flag(FLAG_Z, *reg == 0);
+	cpu_set_flag(FLAG_N, 0);
+	cpu_set_flag(FLAG_H, 0);
+	cpu_set_flag(FLAG_C, new_carry);
+}
+
+void rr(uint8_t *reg) {
+	/* "9-bit" rotate right */
+	uint8_t new_carry = *reg & 1;
+	*reg = (*reg >> 1) | (cpu_c() ? BIT7 : 0);
+	cpu_set_flag(FLAG_Z, *reg == 0);
+	cpu_set_flag(FLAG_N, 0);
+	cpu_set_flag(FLAG_H, 0);
+	cpu_set_flag(FLAG_C, new_carry);
+}
+
 void cpu_update_timer(uint8_t cycles) {
 	uint8_t mode = REG_TAC & (BIT0 | BIT1);
 	uint8_t timer_on = REG_TAC & BIT2;
@@ -193,6 +213,54 @@ uint8_t cpu_step() {
 	uint8_t op = mem_fetch8();
 	uint8_t cycles = 0;
 
+	char instruction_str[32] = {0};
+
+	if (op == 0xcb) {
+		op = mem_fetch8();
+		cycles = cpu_execute_cb(op, instruction_str);
+	} else {
+		cycles = cpu_execute(op, instruction_str);
+	}
+
+	if (DEBUG) printf("%04x: %s  | %d cycles\n", pc, instruction_str, cycles);
+
+	if (cpu_state.interrupts) {
+		if (REG_INTERRUPT_ENABLE & INT_VBLANK & REG_INTERRUPT_FLAG) {
+			cpu_state.interrupts = 0;
+			cpu_push_stack(REG_PC);
+			REG_PC = 0x0040;
+			cpu_unset_interrupt(INT_VBLANK);
+		} else if (REG_INTERRUPT_ENABLE & INT_LCDC & REG_INTERRUPT_FLAG) {
+			cpu_state.interrupts = 0;
+			cpu_push_stack(REG_PC);
+			REG_PC = 0x0048;
+			cpu_unset_interrupt(INT_LCDC);
+		} else if (REG_INTERRUPT_ENABLE & INT_TIMER & REG_INTERRUPT_FLAG) {
+			cpu_state.interrupts = 0;
+			cpu_push_stack(REG_PC);
+			REG_PC = 0x0050;
+			cpu_unset_interrupt(INT_TIMER);
+		} else if (REG_INTERRUPT_ENABLE & INT_SERIAL & REG_INTERRUPT_FLAG) {
+			cpu_state.interrupts = 0;
+			cpu_push_stack(REG_PC);
+			REG_PC = 0x0058;
+			cpu_unset_interrupt(INT_SERIAL);
+		} else if (REG_INTERRUPT_ENABLE & INT_JOYPAD & REG_INTERRUPT_FLAG) {
+			cpu_state.interrupts = 0;
+			cpu_push_stack(REG_PC);
+			REG_PC = 0x0060;
+			cpu_unset_interrupt(INT_JOYPAD);
+		}
+	}
+
+	/* update timer */
+	cpu_update_timer(cycles);
+
+	return cycles;
+}
+
+uint8_t cpu_execute(uint8_t op, char* instruction_str) {
+	uint8_t cycles = 0;
 	int8_t offset = 0;
 	int8_t immediate = 0;
 	uint16_t immediate16 = 0;
@@ -202,8 +270,6 @@ uint8_t cpu_step() {
 	int32_t result = 0;
 	int32_t result4 = 0; /* for half carry flag */
 	int32_t result12 = 0; /* for two byte half carry flag */
-
-	char instruction_str[32] = {0};
 
 	switch (op) {
 	case 0x00:
@@ -322,6 +388,12 @@ uint8_t cpu_step() {
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "ld c, $%02x", REG_C);
 		break;
+	case 0x0f:
+		/* rrca */
+		rrc(&REG_A);
+		cycles = 4;
+		if (DEBUG) sprintf(instruction_str, "rrca");
+		break;
 	case 0x11:
 		/* ld de, nn */
 		immediate16 = mem_fetch16();
@@ -412,6 +484,12 @@ uint8_t cpu_step() {
 		REG_E = mem_fetch8();
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "ld e, $%02x", REG_E);
+		break;
+	case 0x1f:
+		/* rra */
+		rr(&REG_A);
+		cycles = 4;
+		if (DEBUG) sprintf(instruction_str, "rra");
 		break;
 	case 0x20:
 		/* jr nz, n */
@@ -1578,40 +1656,6 @@ uint8_t cpu_step() {
 		break;
 	}
 
-	if (DEBUG) printf("%04x: %s  | %d cycles\n", pc, instruction_str, cycles);
-
-	if (cpu_state.interrupts) {
-		if (REG_INTERRUPT_ENABLE & INT_VBLANK & REG_INTERRUPT_FLAG) {
-			cpu_state.interrupts = 0;
-			cpu_push_stack(REG_PC);
-			REG_PC = 0x0040;
-			cpu_unset_interrupt(INT_VBLANK);
-		} else if (REG_INTERRUPT_ENABLE & INT_LCDC & REG_INTERRUPT_FLAG) {
-			cpu_state.interrupts = 0;
-			cpu_push_stack(REG_PC);
-			REG_PC = 0x0048;
-			cpu_unset_interrupt(INT_LCDC);
-		} else if (REG_INTERRUPT_ENABLE & INT_TIMER & REG_INTERRUPT_FLAG) {
-			cpu_state.interrupts = 0;
-			cpu_push_stack(REG_PC);
-			REG_PC = 0x0050;
-			cpu_unset_interrupt(INT_TIMER);
-		} else if (REG_INTERRUPT_ENABLE & INT_SERIAL & REG_INTERRUPT_FLAG) {
-			cpu_state.interrupts = 0;
-			cpu_push_stack(REG_PC);
-			REG_PC = 0x0058;
-			cpu_unset_interrupt(INT_SERIAL);
-		} else if (REG_INTERRUPT_ENABLE & INT_JOYPAD & REG_INTERRUPT_FLAG) {
-			cpu_state.interrupts = 0;
-			cpu_push_stack(REG_PC);
-			REG_PC = 0x0060;
-			cpu_unset_interrupt(INT_JOYPAD);
-		}
-	}
-
-	/* update timer */
-	cpu_update_timer(cycles);
-
 	return cycles;
 }
 
@@ -1628,16 +1672,6 @@ void rl(uint8_t *reg) {
 	/* "9-bit" rotate left */
 	uint8_t new_carry = *reg >> 7;
 	*reg = (*reg << 1) | (cpu_c() ? 1 : 0);
-	cpu_set_flag(FLAG_Z, *reg == 0);
-	cpu_set_flag(FLAG_N, 0);
-	cpu_set_flag(FLAG_H, 0);
-	cpu_set_flag(FLAG_C, new_carry);
-}
-
-void rr(uint8_t *reg) {
-	/* "9-bit" rotate right */
-	uint8_t new_carry = *reg & 1;
-	*reg = (*reg >> 1) | (cpu_c() ? BIT7 : 0);
 	cpu_set_flag(FLAG_Z, *reg == 0);
 	cpu_set_flag(FLAG_N, 0);
 	cpu_set_flag(FLAG_H, 0);
@@ -1717,6 +1751,18 @@ uint8_t cpu_execute_cb(uint8_t op, char* instruction_str) {
 		rl(&REG_H);
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "rl h");
+		break;
+	case 0x18:
+		/* rr b */
+		rr(&REG_B);
+		cycles = 8;
+		if (DEBUG) sprintf(instruction_str, "rr b");
+		break;
+	case 0x19:
+		/* rr c */
+		rr(&REG_C);
+		cycles = 8;
+		if (DEBUG) sprintf(instruction_str, "rr c");
 		break;
 	case 0x1c:
 		/* rr h */

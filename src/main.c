@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <pthread.h>
 
 #include <SDL.h>
 
@@ -7,6 +8,7 @@
 #include "cpu.h"
 #include "mem.h"
 #include "gpu.h"
+#include "debugger.h"
 
 SDL_Window* Window = NULL;
 SDL_Renderer* Renderer = NULL;
@@ -15,7 +17,11 @@ SDL_Texture* Texture = NULL;
 SDL_Rect SrcRect;
 SDL_Rect DestRect;
 
-int init_win() {
+pthread_t debugger_thread;
+pthread_mutex_t mutex;
+volatile uint8_t RUNNING = 0;
+
+uint8_t init_win() {
 	if(SDL_Init(SDL_INIT_VIDEO) < 0) {
 		printf("Unable to Init SDL: %s", SDL_GetError());
 		return 0;
@@ -43,9 +49,75 @@ int init_win() {
 	return 1;
 }
 
-int main(int argc, char **argv) {
+uint8_t handle_event(SDL_Event *Event) {
+	if (Event->type == SDL_QUIT) {
+		return 1;
+
+	} else if (Event->type == SDL_KEYDOWN) {
+		switch (Event->key.keysym.sym) {
+		case SDLK_DOWN:
+			cpu_set_joypad(1, 3);
+			break;
+		case SDLK_UP:
+			cpu_set_joypad(1, 2);
+			break;
+		case SDLK_LEFT:
+			cpu_set_joypad(1, 1);
+			break;
+		case SDLK_RIGHT:
+			cpu_set_joypad(1, 0);
+			break;
+		case SDLK_v:
+			cpu_set_joypad(0, 3);
+			break;
+		case SDLK_c:
+			cpu_set_joypad(0, 2);
+			break;
+		case SDLK_z:
+			cpu_set_joypad(0, 1);
+			break;
+		case SDLK_x:
+			cpu_set_joypad(0, 0);
+			break;
+		}
+
+	} else if (Event->type == SDL_KEYUP) {
+		switch (Event->key.keysym.sym) {
+		case SDLK_DOWN:
+			cpu_unset_joypad(1, 3);
+			break;
+		case SDLK_UP:
+			cpu_unset_joypad(1, 2);
+			break;
+		case SDLK_LEFT:
+			cpu_unset_joypad(1, 1);
+			break;
+		case SDLK_RIGHT:
+			cpu_unset_joypad(1, 0);
+			break;
+		case SDLK_v:
+			cpu_unset_joypad(0, 3);
+			break;
+		case SDLK_c:
+			cpu_unset_joypad(0, 2);
+			break;
+		case SDLK_z:
+			cpu_unset_joypad(0, 1);
+			break;
+		case SDLK_x:
+			cpu_unset_joypad(0, 0);
+			break;
+		case SDLK_ESCAPE:
+			/* pause game */
+			debugger_set_state(0);
+		}
+	}
+	return 0;
+}
+
+uint8_t main(int argc, char **argv) {
 	FILE *fp;
-	uint32_t i, j, cycles, total_cycles;
+	uint32_t i, j, cycles;
 	uint16_t buffer[256 * 256] = {0};
 	uint8_t redraw = 0;
 	SDL_Event Event;
@@ -68,77 +140,33 @@ int main(int argc, char **argv) {
 
 	if(init_win() == 0) {
 		printf("Unable to init window");
-		return 0;
+		return 1;
+	}
+
+	if(pthread_create(&debugger_thread, 0, debugger_main, &RUNNING)) {
+		printf("Unable to start debugger thread");
+		return 1;
 	}
 
 	while (1) {
-		//if (REG_PC == 0x17f) { printf("BREAK\n"); break; }
-		cycles = cpu_step();
-		redraw = gpu_step(cycles, buffer);
-		//cpu_debug();
-
-		if (SDL_PollEvent(&Event) ) {
-			if (Event.type == SDL_QUIT) {
-				break;
-			} else if (Event.type == SDL_KEYDOWN) {
-				switch (Event.key.keysym.sym) {
-				case SDLK_DOWN:
-					cpu_set_joypad(1, 3);
-					break;
-				case SDLK_UP:
-					cpu_set_joypad(1, 2);
-					break;
-				case SDLK_LEFT:
-					cpu_set_joypad(1, 1);
-					break;
-				case SDLK_RIGHT:
-					cpu_set_joypad(1, 0);
-					break;
-				case SDLK_v:
-					cpu_set_joypad(0, 3);
-					break;
-				case SDLK_c:
-					cpu_set_joypad(0, 2);
-					break;
-				case SDLK_z:
-					cpu_set_joypad(0, 1);
-					break;
-				case SDLK_x:
-					cpu_set_joypad(0, 0);
-					break;
-				}
-			} else if (Event.type == SDL_KEYUP) {
-				switch (Event.key.keysym.sym) {
-				case SDLK_DOWN:
-					cpu_unset_joypad(1, 3);
-					break;
-				case SDLK_UP:
-					cpu_unset_joypad(1, 2);
-					break;
-				case SDLK_LEFT:
-					cpu_unset_joypad(1, 1);
-					break;
-				case SDLK_RIGHT:
-					cpu_unset_joypad(1, 0);
-					break;
-				case SDLK_v:
-					cpu_unset_joypad(0, 3);
-					break;
-				case SDLK_c:
-					cpu_unset_joypad(0, 2);
-					break;
-				case SDLK_z:
-					cpu_unset_joypad(0, 1);
-					break;
-				case SDLK_x:
-					cpu_unset_joypad(0, 0);
-					break;
-				}
+		if (RUNNING) {
+			if (debugger_in_breakpoints(REG_PC)) {
+				RUNNING = 0;
+				printf("Triggered breakpoint at $%04hx.\n", REG_PC);
+				debugger_set_state(0);
+			} else {
+				cycles = cpu_step();
+				redraw = gpu_step(cycles, buffer);
+				//cpu_debug();
 			}
 		}
 
+		if (SDL_PollEvent(&Event)) {
+			if (handle_event(&Event)) break;
+		}
+
 		/* draw buffer */
-		if (redraw == 1) {
+		if (redraw == 1 || RUNNING == 0) {
 			gpu_draw_screen(buffer);
 			SDL_UpdateTexture(Texture, NULL, buffer, 256 * sizeof(uint16_t));
 			SDL_RenderClear(Renderer);
@@ -154,9 +182,8 @@ int main(int argc, char **argv) {
 			SDL_RenderCopy(Renderer, Texture, &SrcRect, &DestRect);
 
 			SDL_RenderPresent(Renderer);
+			SDL_Delay(1);
 		}
-
-		total_cycles += cycles;
 	}
 
 	cpu_debug();
@@ -179,4 +206,6 @@ int main(int argc, char **argv) {
 	SDL_DestroyRenderer(Renderer);
 	SDL_DestroyWindow(Window);
 	SDL_Quit();
+
+	return 0;
 }
