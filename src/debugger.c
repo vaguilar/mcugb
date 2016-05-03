@@ -109,7 +109,9 @@ uint8_t debugger_cmd(char *cmd) {
 
 void debugger_help() {
 	printf("COMMANDS:\n");
+	printf("  b -- Add breakpoint e.g. b 12ab\n");
 	printf("  c -- Continue rom execution\n");
+	printf("  d -- Delete breakpoint e.g. d 12ab\n");
 	printf("  h -- This menu\n");
 	printf("  l -- List breakpoints\n");
 	printf("  r -- Run rom\n");
