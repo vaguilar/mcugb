@@ -70,6 +70,7 @@ uint8_t cpu_joypad_states[2];
 
 void cpu_reset();
 void cpu_debug();
+void cpu_debug_stack();
 void cpu_push_stack(uint16_t word);
 uint16_t cpu_pop_stack();
 

@@ -153,6 +153,7 @@ uint8_t main(int argc, char **argv) {
 			if (debugger_in_breakpoints(REG_PC)) {
 				printf("Triggered breakpoint at $%04hx.\n", REG_PC);
 				cpu_debug();
+				cpu_debug_stack();
 				debugger_set_state(0);
 			} else {
 				cycles = cpu_step();

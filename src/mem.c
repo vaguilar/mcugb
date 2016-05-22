@@ -7,6 +7,7 @@
 #include "gpu.h"
 
 #define DEBUG 0
+
 uint8_t MEM[65536] = {0};
 
 uint8_t mem_read8(uint16_t addr) {

@@ -10,6 +10,8 @@
 #define REG_LY 		MEM[0xff44]
 #define REG_LYC		MEM[0xff45]
 #define REG_DMA		MEM[0xff46]
+#define REG_WY		MEM[0xff4a]
+#define REG_WX		MEM[0xff4b]
 
 #define LCDC_BG_TILE_DATA (1 << 4)
 #define LCDC_BG_TILE_MAP_SELECT (1 << 3)

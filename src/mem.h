@@ -1,5 +1,6 @@
 #pragma once
 
+#define REG_JOYPAD				MEM[0xff00]
 #define REG_DIV					MEM[0xff04]
 #define REG_TIMA				MEM[0xff05]
 #define REG_TMA					MEM[0xff06]

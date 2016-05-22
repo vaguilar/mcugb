@@ -3,6 +3,7 @@
 #include <pthread.h>
 
 #include "debugger.h"
+#include "cpu.h"
 
 uint16_t breakpoints[MAX_BREAKPOINTS] = {0};
 uint8_t breakpoints_len = 0;
@@ -13,7 +14,7 @@ pthread_cond_t condA;
 
 void* debugger_main(void *running) {
 	pthread_mutex_init(&mutex, NULL);
-
+	RUNNING = 1; // comment to start in debug mode
 	while (1) {
         while (RUNNING == 1)
 			pthread_cond_wait(&condA, &mutex);
@@ -22,6 +23,7 @@ void* debugger_main(void *running) {
 		printf("\n> ");
 		fgets(cmd, 32, stdin);
 		if (debugger_cmd(cmd)) {
+			cpu_step();
 			debugger_set_state(1);
 		}
 	}
@@ -36,6 +38,7 @@ void debugger_set_state(uint8_t state) {
 
 uint8_t debugger_cmd(char *cmd) {
 	uint16_t addr = 0;	
+	uint16_t ret = 0;
 	uint8_t *tok;
 	tok = strtok(cmd, " ");
 
@@ -58,7 +61,7 @@ uint8_t debugger_cmd(char *cmd) {
 
 	case 'c':
 		/* continue */
-		RUNNING = 1;
+		ret = 1;
 		break;
 
 	case 'd':
@@ -92,7 +95,7 @@ uint8_t debugger_cmd(char *cmd) {
 
 	case 'r':
 		/* run */
-		RUNNING = 1;
+		ret = 1;
 		break;
 
 	case 'x':
@@ -104,7 +107,7 @@ uint8_t debugger_cmd(char *cmd) {
 		printf("Invalid command, type 'h' for list of commands.\n");
 	}
 
-	return 0;
+	return ret;
 }
 
 void debugger_help() {

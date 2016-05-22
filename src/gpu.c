@@ -147,8 +147,8 @@ void gpu_draw_screen(uint16_t *buffer) {
 	uint16_t sprite_addr = 0xfe00;
 	if (REG_LCDC & LCDC_SHOW_SPRITES) {
 		for (r = 0; r < 40; r++) {
-			y = mem_read8(sprite_addr++);
-			x = mem_read8(sprite_addr++);
+			y = mem_read8(sprite_addr++) - 16;
+			x = mem_read8(sprite_addr++) - 8;
 			id = mem_read8(sprite_addr++);
 			flags = mem_read8(sprite_addr++);
 
