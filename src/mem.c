@@ -97,7 +97,7 @@ uint16_t mem_fetch16() {
 void mem_dma(uint16_t addr) {
 	uint8_t i;
 	if (DEBUG) printf("requesting DMA transfer $%04x \n", addr);
-	for (i = 0; i < 40; i++) {
+	for (i = 0; i < 40 * 4; i++) {
 		MEM[0xfe00+i] = MEM[addr+i];
 	}
 }
