@@ -162,12 +162,12 @@ uint8_t main(int argc, char **argv) {
 			}
 		}
 
-		if (SDL_PollEvent(&Event)) {
-			if (handle_event(&Event)) break;
-		}
-
 		/* draw buffer */
 		if (redraw == 1 || RUNNING == 0) {
+			if (SDL_PollEvent(&Event)) {
+				if (handle_event(&Event)) break;
+			}
+
 			gpu_draw_screen(buffer);
 			SDL_UpdateTexture(Texture, NULL, buffer, 256 * sizeof(uint16_t));
 			SDL_RenderClear(Renderer);
@@ -183,7 +183,7 @@ uint8_t main(int argc, char **argv) {
 			SDL_RenderCopy(Renderer, Texture, &SrcRect, &DestRect);
 
 			SDL_RenderPresent(Renderer);
-			SDL_Delay(1);
+			SDL_Delay(12);
 		}
 	}
 

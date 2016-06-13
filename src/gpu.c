@@ -99,8 +99,11 @@ void gpu_draw_tile(uint16_t src_addr, uint16_t *dst_buffer, uint16_t x, uint16_t
 	}
 }
 
-void gpu_draw_sprite(uint16_t src_addr, uint16_t *dst_buffer, uint16_t x, uint16_t y) {
+void gpu_draw_sprite(uint16_t src_addr, uint16_t *dst_buffer, uint16_t x, uint16_t y, uint8_t flags) {
 	uint32_t r, c, color_index, line1, line2;
+
+	if (flags & SPRITE_PRIORITY == 0) return;
+
 	for (r = 0; r < 8; r++) {
 		line1 = mem_read8(src_addr++);
 		line2 = mem_read8(src_addr++);
@@ -108,7 +111,11 @@ void gpu_draw_sprite(uint16_t src_addr, uint16_t *dst_buffer, uint16_t x, uint16
 			color_index  = (line1 >> (7 - c)) & 1;
 			color_index |= line2 & (0x80 >> c) ? 2 : 0;
 			if (color_index > 0) {
-				gpu_set_pixel(dst_buffer, x+c, y+r, COLORS[color_index]);
+				uint16_t gx = x+c;
+				uint16_t gy = y+r;
+				if (flags & SPRITE_FLIP_H) gx = x+7-c;
+				if (flags & SPRITE_FLIP_V) gy = y+7-r;
+				gpu_set_pixel(dst_buffer, gx, gy, COLORS[color_index]);
 			}
 		}
 	}
@@ -153,10 +160,10 @@ void gpu_draw_screen(uint16_t *buffer) {
 			flags = mem_read8(sprite_addr++);
 
 			if (x == 0 && y == 0) continue;
-			gpu_draw_sprite(id * 16 + 0x8000, buffer, x, y);
+			gpu_draw_sprite(id * 16 + 0x8000, buffer, x, y, flags);
 
 			if (REG_LCDC & LCDC_SPRITE_DOUBLE_HEIGHT) {
-				gpu_draw_sprite(id * 16 + 0x8000 + 16, buffer, x, y + 8);
+				gpu_draw_sprite(id * 16 + 0x8000 + 16, buffer, x, y + 8, flags);
 			}
 		}
 	}
