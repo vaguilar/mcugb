@@ -29,7 +29,10 @@ void mem_write8(uint16_t addr, uint8_t byte) {
 		} else if (addr < 0x4000) {
 			// ROM bank select (0 points to one as well)
 			// BANK = byte ? byte : 1;
-			printf("Switching to ROM bank %d\n", byte);
+			printf("Switching to ROM bank %d, PC = %04x\n", byte, REG_PC);
+
+			if (byte == 0) byte = 1;
+			//memcpy
 		} else if (addr < 0x6000) {
 			//
 		} else {
@@ -67,7 +70,7 @@ void mem_write8(uint16_t addr, uint8_t byte) {
 
 		} else {
 			MEM[addr] = byte;
-			if (DEBUG && addr > 0xff00) printf("Writing to MM register, [%04x] = %02x\n", addr, byte);
+			if (DEBUG && addr > 0xff00) printf("Writing to MM register, [%04x] = %02x at PC = %04x\n", addr, byte, REG_PC);
 		}
 	}
 }

@@ -4,6 +4,10 @@
 #define BIT1 (1 << 1)
 #define BIT2 (1 << 2)
 #define BIT7 (1 << 7)
+#define BIT11 (1 << 11)
+#define BIT12 (1 << 12)
+#define BIT15 (1 << 15)
+#define BIT16 (1 << 16)
 
 #define REG_AF (*((uint16_t*)&registers.F))
 #define REG_BC (*((uint16_t*)&registers.C))
@@ -34,10 +38,10 @@
 
 #define cpu_z() ((REG_F & FLAG_Z) != 0)
 #define cpu_nz() ((REG_F & FLAG_Z) == 0)
-#define cpu_c() ((REG_F & FLAG_C) != 0)
-#define cpu_nc() ((REG_F & FLAG_C) == 0)
 #define cpu_o() ((REG_F & FLAG_N) != 0)
 #define cpu_h() ((REG_F & FLAG_H) != 0)
+#define cpu_c() ((REG_F & FLAG_C) != 0)
+#define cpu_nc() ((REG_F & FLAG_C) == 0)
 #define cpu_set_flag(flag, val) (REG_F = val ? REG_F | flag : REG_F & ~flag)
 
 struct {

@@ -14,7 +14,7 @@ pthread_cond_t condA;
 
 void* debugger_main(void *running) {
 	pthread_mutex_init(&mutex, NULL);
-	RUNNING = 1; // comment to start in debug mode
+	//RUNNING = 1; // comment to start in debug mode
 	while (1) {
         while (RUNNING == 1)
 			pthread_cond_wait(&condA, &mutex);
