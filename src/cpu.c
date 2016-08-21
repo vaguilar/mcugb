@@ -81,11 +81,11 @@ void dec16(uint8_t *reg_h, uint8_t *reg_l) {
 
 void sub(uint8_t *reg) {
 	uint16_t result = REG_A - *reg;
-	uint8_t result4 = (REG_A & 0xf) - (*reg & 0xf);
+	uint8_t half_carry = (REG_A & 0xf) < (*reg & 0xf);
 	cpu_set_flag(FLAG_Z, !(result & 0xff));
 	cpu_set_flag(FLAG_N, 1);
-	cpu_set_flag(FLAG_H, result4 < 0);
-	cpu_set_flag(FLAG_C, result < 0);
+	cpu_set_flag(FLAG_H, half_carry);
+	cpu_set_flag(FLAG_C, REG_A < *reg);
 	REG_A = result & 0xff;
 }
 
@@ -132,13 +132,12 @@ void adc(uint8_t *reg) {
 }
 
 void cp(uint8_t *reg) {
-	int8_t byte = *reg;
-	int16_t result = REG_A - byte;
-	int16_t result4 = (REG_A & 0xf) - (byte & 0xf);
+	int16_t result = REG_A - *reg;
+	uint8_t half_carry = (REG_A & 0xf) < (*reg & 0xf);
 	cpu_set_flag(FLAG_Z, !(result & 0xff));
 	cpu_set_flag(FLAG_N, 1);
-	cpu_set_flag(FLAG_H, result4 < 0);
-	cpu_set_flag(FLAG_C, result < 0);
+	cpu_set_flag(FLAG_H, half_carry);
+	cpu_set_flag(FLAG_C, REG_A < *reg);
 }
 
 void ret() {
@@ -177,8 +176,6 @@ void rrc(uint8_t *reg) {
 void rr(uint8_t *reg) {
 	/* "9-bit" rotate right */
 	uint8_t new_carry = *reg & 1;
-	//*reg = (*reg >> 1) | (cpu_c() ? BIT7 : 0);
-	//printf("rr at %x\n", REG_PC);
 	*reg = (*reg >> 1) | (cpu_c() ? BIT7 : 0);
 	cpu_set_flag(FLAG_Z, *reg == 0);
 	cpu_set_flag(FLAG_N, 0);
@@ -199,7 +196,6 @@ void swap(uint8_t *reg) {
 void rl(uint8_t *reg) {
 	/* "9-bit" rotate left */
 	uint8_t new_carry = *reg & BIT7;
-	//printf("rl at %x\n", REG_PC);
 	*reg = (*reg << 1);
 	if (cpu_c()) *reg |= 1;
 
@@ -484,8 +480,8 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		result = REG_HL + REG_DE;
 		result4 = (REG_HL & 0xfff) + (REG_DE & 0xfff);
 		cpu_set_flag(FLAG_N, 0);
-		cpu_set_flag(FLAG_H, result4 >> 12);
-		cpu_set_flag(FLAG_C, result >> 16);
+		cpu_set_flag(FLAG_H, result4 & BIT12);
+		cpu_set_flag(FLAG_C, result & BIT16);
 		REG_HL = result;
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "add hl, de");
@@ -600,8 +596,8 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		result = REG_HL + REG_HL;
 		result12 = (REG_HL & 0xfff) + (REG_HL & 0xfff);
 		cpu_set_flag(FLAG_N, 0);
-		cpu_set_flag(FLAG_H, result12 > 0xfff);
-		cpu_set_flag(FLAG_C, result > 0xffff);
+		cpu_set_flag(FLAG_H, result12 & BIT12);
+		cpu_set_flag(FLAG_C, result & BIT16);
 		REG_HL = result & 0xffff;
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "add hl, hl");
@@ -708,7 +704,6 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 	case 0x38:
 		/* jr c, n */
 		offset = (int8_t) mem_fetch8(); /* signed value */
-		//printf("jr c here %d %d PC = %04x %04x\n", (int16_t) offset, offset, REG_PC-2, REG_PC + offset);
 		if (cpu_c()) REG_PC += (int16_t) offset;
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "jr c, $%02hhx", offset);
@@ -1795,7 +1790,6 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		/* ld ($ff00+n), a */
 		byte = mem_fetch8();
 		mem_write8(0xff00 + byte, REG_A);
-		//mem_debug((0xff00 + immediate) & 0xfff0, 16);
 		cycles = 12;
 		if (DEBUG) sprintf(instruction_str, "ld ($ff00+$%02hhx), a", byte);
 		break;
@@ -1808,7 +1802,6 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 	case 0xe2:
 		/* ld ($ff00+c), a */
 		mem_write8(0xff00 + REG_C, REG_A);
-		//mem_debug((0xff00 + REG_C) & 0xfff0, 16);
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "ld ($ff00+c), a");
 		break;
@@ -1963,10 +1956,10 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		byte = mem_fetch8();
 		result = REG_A - byte;
 		result4 = (REG_A & 0xf) - (byte & 0xf);
-		cpu_set_flag(FLAG_Z, !(result & 0xff));
+		cpu_set_flag(FLAG_Z, REG_A == byte);
 		cpu_set_flag(FLAG_N, 1);
 		cpu_set_flag(FLAG_H, result4 < 0);
-		cpu_set_flag(FLAG_C, result < 0);
+		cpu_set_flag(FLAG_C, REG_A < byte);
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "cp a, $%02hx", byte);
 		break;
@@ -2037,6 +2030,8 @@ uint8_t cpu_execute_cb(uint8_t op, char* instruction_str) {
 
 	uint8_t x, y, z;
 
+	/* 0b76543210 */
+	/*   xxyyyzzz */
 	x = op >> 6;
 	y = (op >> 3) & 7;
 	z = op & 7;
@@ -2130,7 +2125,7 @@ void cpu_debug_stack() {
 	uint8_t i = 0;
 
 	printf("Stack:\n");
-	for (i = 0; i < 16 && stack_ptr < 0xffff; i++) {
+	for (i = 0; i < 32 && stack_ptr < 0xffff; i++) {
 		printf("[%04hx]: %04hx\n", stack_ptr, mem_read16(stack_ptr));
 		stack_ptr += 2;
 	}

@@ -6,6 +6,7 @@
 #define BIT7 (1 << 7)
 #define BIT11 (1 << 11)
 #define BIT12 (1 << 12)
+#define BIT14 (1 << 14)
 #define BIT15 (1 << 15)
 #define BIT16 (1 << 16)
 

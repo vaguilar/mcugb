@@ -20,6 +20,7 @@ SDL_Rect DestRect;
 pthread_t debugger_thread;
 pthread_mutex_t mutex;
 volatile uint8_t RUNNING = 0;
+volatile uint8_t STEP = 0;
 
 uint8_t init_win() {
 	if(SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -150,7 +151,13 @@ uint8_t main(int argc, char **argv) {
 
 	while (1) {
 		if (RUNNING) {
-			if (debugger_in_breakpoints(REG_PC)) {
+			if (STEP) {
+				printf("Stepped one instruction, now at $%04hx.\n", REG_PC);
+				cpu_debug();
+				cpu_debug_stack();
+				STEP = 0;
+				debugger_set_state(0);
+			} else if (debugger_in_breakpoints(REG_PC)) {
 				printf("Triggered breakpoint at $%04hx.\n", REG_PC);
 				cpu_debug();
 				cpu_debug_stack();
@@ -194,14 +201,13 @@ uint8_t main(int argc, char **argv) {
 	mem_debug(0xff40, 16);
 	printf("\n");
 	mem_debug(0xfe00, 128);
-	//printf("STACK:\n");
-	//mem_debug(REG_SP, 0xffff - REG_SP > 64 ? 64 : 0xffff - REG_SP);
 	mem_debug(0xc0a4, 16);
 	mem_debug(0x98a0, 16);
 	printf("LCDC: $%04x\n", REG_LCDC);
 	printf("STAT: $%04x\n", REG_STAT);
 	printf("REG IE: $%04x\n", REG_INTERRUPT_ENABLE);
 	printf("REG IF: $%04x\n", REG_INTERRUPT_FLAG);
+	cpu_debug_stack();
 
 	SDL_DestroyTexture(Texture);
 	SDL_DestroyRenderer(Renderer);

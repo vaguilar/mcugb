@@ -4,7 +4,14 @@
 #include "cpu.h"
 #include "mem.h"
 
-uint32_t test0() {
+uint8_t assert_equals(uint32_t expected, uint32_t actual) {
+	if (expected != actual) {
+		printf("Assert FAILED. Expected value: %04hx, actual %04hx\n", expected, actual);
+		exit(1);
+	}
+}
+
+uint8_t test0() {
 	uint8_t program[] = {
 		0x3e, 0xff, // ld  a, 0xff
 		0xc6, 0x03, // add a, 0x03
@@ -55,7 +62,7 @@ uint32_t test0() {
 	return 1;
 }
 
-uint32_t test1() {
+uint8_t test1() {
 	uint16_t i;
 	uint8_t program[] = {
 		0x3e, 0x0d, // LD A, 0x0d
@@ -77,7 +84,7 @@ uint32_t test1() {
 }
 
 /* testing rlca flags */
-uint32_t test2() {
+uint8_t test2() {
 	uint16_t i;
 	uint8_t program[] = {
 		0x3e, 0x81, // ld a, 0x00
@@ -94,22 +101,44 @@ uint32_t test2() {
 		cpu_debug();
 	}
 
-	if (REG_A != 0x00 || REG_F | FLAG_Z == 0) {
-		printf("Register A should be 0x00, Z flag should not be set\n");
+	if (REG_A == 0x06 && (REG_F | FLAG_Z) == 0) {
+		printf("Register A should be 0x06, Z flag should not be set\n");
 		return 0;
 	}
 	return 1;
 }
 
+/* testing sub */
+uint8_t test3() {
+	REG_AF = 0x0020;
+	REG_HL = 0x0002;
+	sub(&REG_L);
+	assert_equals(REG_AF, 0xfe70);
+
+	REG_AF = 0x0c50;
+	REG_HL = 0x8900;
+	sub(&REG_H);
+	assert_equals(REG_AF, 0x8350);
+
+	REG_AF = 0xee50;
+	REG_HL = 0x8900;
+	sub(&REG_H);
+	assert_equals(REG_AF, 0x6540);
+	return 1;
+}
+
 void run_tests() {
-	uint32_t result;
+	char *tests_names[] = {"basicProgram", "addCorrectResult", "rclaCorrectResult", "subCorrectResult", 0};
+	uint8_t (*tests[])() = {test0, test1, test2, test3, 0};
+	uint8_t i, result;
 
-	result = test0();
-	printf("test0 %s\n\n", result ? "PASSED" : "FAILED");
+	for (i = 0; tests[i]; i++) {
+		cpu_reset();
 
-	result = test1();
-	printf("test1 %s\n\n", result ? "PASSED" : "FAILED");
+		printf("Test %s: ", tests_names[i]);
+		result = tests[i]();
+		printf("%s\n\n", result ? "PASSED" : "FAILED");
 
-	result = test1();
-	printf("test2 %s\n\n", result ? "PASSED" : "FAILED");
+		if (result == 0) break;
+	}
 }

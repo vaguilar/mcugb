@@ -9,12 +9,13 @@ uint16_t breakpoints[MAX_BREAKPOINTS] = {0};
 uint8_t breakpoints_len = 0;
 char cmd[32] = {0};
 extern volatile uint8_t RUNNING;
+extern volatile uint8_t STEP;
 pthread_mutex_t mutex;
 pthread_cond_t condA;
 
 void* debugger_main(void *running) {
 	pthread_mutex_init(&mutex, NULL);
-	//RUNNING = 1; // comment to start in debug mode
+	RUNNING = 1; // comment to start in debug mode
 	while (1) {
         while (RUNNING == 1)
 			pthread_cond_wait(&condA, &mutex);
@@ -98,6 +99,12 @@ uint8_t debugger_cmd(char *cmd) {
 		ret = 1;
 		break;
 
+	case 's':
+		/* step */
+		STEP = 1;
+		ret = 1;
+		break;
+
 	case 'x':
 		/* exit */
 		exit(0);
@@ -118,6 +125,7 @@ void debugger_help() {
 	printf("  h -- This menu\n");
 	printf("  l -- List breakpoints\n");
 	printf("  r -- Run rom\n");
+	printf("  s -- Step, execute one instruction\n");
 	printf("  x -- Exit\n");
 }
 
