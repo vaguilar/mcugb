@@ -109,6 +109,14 @@ void xor(uint8_t *reg) {
 	cpu_set_flag(FLAG_C, 0);
 }
 
+void or(uint8_t *reg) {
+	REG_A |= *reg;
+	cpu_set_flag(FLAG_Z, !REG_A);
+	cpu_set_flag(FLAG_N, 0);
+	cpu_set_flag(FLAG_H, 0);
+	cpu_set_flag(FLAG_C, 0);
+}
+
 void add(uint8_t *reg) {
 	uint16_t result = REG_A + *reg;
 	uint8_t result4 = (REG_A & 0xf) + (*reg & 0xf);
@@ -328,22 +336,13 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		break;
 	case 0x04:
 		/* inc b */
-		result = REG_B + 1;
-		cpu_set_flag(FLAG_Z, !(result & 0xff));
-		cpu_set_flag(FLAG_N, 0);
-		cpu_set_flag(FLAG_H, result > 0xff);
-		REG_B = result;
+		inc8(&REG_B);
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "inc b");
 		break;
 	case 0x05:
 		/* dec b */
-		result = REG_B - 1;
-		result4 = (REG_B & 0xf) - 1;
-		cpu_set_flag(FLAG_Z, !(result & 0xff));
-		cpu_set_flag(FLAG_N, 1);
-		cpu_set_flag(FLAG_H, result4 < 0);
-		REG_B = result & 0xff;
+		dec8(&REG_B);
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "dec b");
 		break;
@@ -410,6 +409,12 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "ld c, $%02x", REG_C);
 		break;
+	case 0x0f:
+		/* rrca */
+		rrc(&REG_A);
+		cycles = 4;
+		if (DEBUG) sprintf(instruction_str, "rrca");
+		break;
 	case 0x10:
 		/* stop */
 		/* TODO implement correctly */
@@ -417,12 +422,6 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		//cpu_state.halt = 1;
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "stop");
-		break;
-	case 0x0f:
-		/* rrca */
-		rrc(&REG_A);
-		cycles = 4;
-		if (DEBUG) sprintf(instruction_str, "rrca");
 		break;
 	case 0x11:
 		/* ld de, nn */
@@ -664,6 +663,12 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "ldd (hl), a");
 		break;
+	case 0x33:
+		/* inc sp */
+		REG_SP++;
+		cycles = 8;
+		if (DEBUG) sprintf(instruction_str, "inc sp");
+		break;
 	case 0x34:
 		/* inc (hl) */
 		result = mem_read8(REG_HL) + 1;
@@ -726,6 +731,12 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		if (REG_L == 0xff) REG_H--;
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "ldd a, (hl)");
+		break;
+	case 0x3b:
+		/* dec sp */
+		REG_SP--;
+		cycles = 8;
+		if (DEBUG) sprintf(instruction_str, "dec sp");
 		break;
 	case 0x3c:
 		/* inc a */
@@ -1249,6 +1260,11 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "add a, (hl)");
 		break;
+	case 0x8f:
+		adc(&REG_A);
+		cycles = 4;
+		if (DEBUG) sprintf(instruction_str, "adc a, a");
+		break;
 	case 0x90:
 		/* sub a, b */
 		sub(&REG_B);
@@ -1288,13 +1304,7 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 	case 0x96:
 		/* sub a, (hl) */
 		byte = mem_read8(REG_HL);
-		result = REG_A - byte;
-		result4 = (REG_A & 0xf) - (byte & 0xf);
-		cpu_set_flag(FLAG_Z, !(result & 0xff));
-		cpu_set_flag(FLAG_N, 1);
-		cpu_set_flag(FLAG_H, result4 < 0);
-		cpu_set_flag(FLAG_C, result < 0);
-		REG_A = result & 0xff;
+		sub(&byte);
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "sub a, (hl)");
 		break;
@@ -1333,6 +1343,12 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		sbc(&REG_H);
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "sbc a, h");
+		break;
+	case 0x9d:
+		/* sbc a, l */
+		sbc(&REG_L);
+		cycles = 4;
+		if (DEBUG) sprintf(instruction_str, "sbc a, l");
 		break;
 	case 0x9e:
 		/* sbc a, (hl) */
@@ -1444,105 +1460,62 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		break;
 	case 0xb0:
 		/* or b */
-		REG_A |= REG_B;
-		cpu_set_flag(FLAG_Z, !(REG_A & 0xff));
-		cpu_set_flag(FLAG_N, 0);
-		cpu_set_flag(FLAG_H, 0);
-		cpu_set_flag(FLAG_C, 0);
+		or(&REG_B);
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "or b");
 		break;
 	case 0xb1:
 		/* or c */
-		REG_A |= REG_C;
-		cpu_set_flag(FLAG_Z, !(REG_A & 0xff));
-		cpu_set_flag(FLAG_N, 0);
-		cpu_set_flag(FLAG_H, 0);
-		cpu_set_flag(FLAG_C, 0);
+		or(&REG_C);
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "or c");
 		break;
 	case 0xb2:
 		/* or d */
-		REG_A |= REG_D;
-		cpu_set_flag(FLAG_Z, !(REG_A & 0xff));
-		cpu_set_flag(FLAG_N, 0);
-		cpu_set_flag(FLAG_H, 0);
-		cpu_set_flag(FLAG_C, 0);
+		or(&REG_D);
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "or d");
 		break;
 	case 0xb3:
 		/* or e */
-		REG_A |= REG_E;
-		cpu_set_flag(FLAG_Z, !(REG_A & 0xff));
-		cpu_set_flag(FLAG_N, 0);
-		cpu_set_flag(FLAG_H, 0);
-		cpu_set_flag(FLAG_C, 0);
+		or(&REG_E);
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "or e");
 		break;
 	case 0xb4:
 		/* or h */
-		REG_A |= REG_H;
-		cpu_set_flag(FLAG_Z, !(REG_A & 0xff));
-		cpu_set_flag(FLAG_N, 0);
-		cpu_set_flag(FLAG_H, 0);
-		cpu_set_flag(FLAG_C, 0);
+		or(&REG_H);
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "or h");
 		break;
 	case 0xb5:
 		/* or l */
-		REG_A |= REG_L;
-		cpu_set_flag(FLAG_Z, REG_A == 0);
-		cpu_set_flag(FLAG_N, 0);
-		cpu_set_flag(FLAG_H, 0);
-		cpu_set_flag(FLAG_C, 0);
+		or(&REG_L);
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "or l");
 		break;
 	case 0xb6:
 		/* or (hl) */
-		REG_A |= MEM[REG_HL];
-		cpu_set_flag(FLAG_Z, REG_A == 0);
-		cpu_set_flag(FLAG_N, 0);
-		cpu_set_flag(FLAG_H, 0);
-		cpu_set_flag(FLAG_C, 0);
+		byte = MEM[REG_HL];
+		or(&byte);
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "or (hl)");
 		break;
 	case 0xb7:
 		/* or a */
-		REG_A |= REG_A;
-		cpu_set_flag(FLAG_Z, !(REG_A & 0xff));
-		cpu_set_flag(FLAG_N, 0);
-		cpu_set_flag(FLAG_H, 0);
-		cpu_set_flag(FLAG_C, 0);
+		or(&REG_A);
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "or a");
 		break;
 	case 0xb8:
 		/* cp a, b */
-		byte = REG_B;
-		result = REG_A - byte;
-		result4 = (REG_A & 0xf) - (byte & 0xf);
-		cpu_set_flag(FLAG_Z, !(result & 0xff));
-		cpu_set_flag(FLAG_N, 1);
-		cpu_set_flag(FLAG_H, result4 < 0);
-		cpu_set_flag(FLAG_C, result < 0);
+		cp(&REG_B);
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "cp a, b");
 		break;
 	case 0xb9:
 		/* cp a, c */
-		byte = REG_C;
-		result = REG_A - byte;
-		result4 = (REG_A & 0xf) - (byte & 0xf);
-		cpu_set_flag(FLAG_Z, !(result & 0xff));
-		cpu_set_flag(FLAG_N, 1);
-		cpu_set_flag(FLAG_H, result4 < 0);
-		cpu_set_flag(FLAG_C, result < 0);
+		cp(&REG_C);
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "cp a, c");
 		break;
@@ -1573,14 +1546,15 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 	case 0xbe:
 		/* cp a, (hl) */
 		byte = mem_read8(REG_HL);
-		result = REG_A - byte;
-		result4 = (REG_A & 0xf) - (byte & 0xf);
-		cpu_set_flag(FLAG_Z, !(result & 0xff));
-		cpu_set_flag(FLAG_N, 1);
-		cpu_set_flag(FLAG_H, result4 < 0);
-		cpu_set_flag(FLAG_C, result < 0);
+		cp(&byte);
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "cp a, (hl)");
+		break;
+	case 0xbf:
+		/* cp a, a */
+		cp(&REG_A);
+		cycles = 4;
+		if (DEBUG) sprintf(instruction_str, "cp a, a");
 		break;
 	case 0xc0:
 		/* ret nz */
@@ -1661,6 +1635,11 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		cycles = 12;
 		if (DEBUG) sprintf(instruction_str, "jp z, $%04x", addr);
 		break;
+	case 0xcb:
+		/* extra cb instructions */
+		byte = mem_fetch8();
+		cycles = cpu_execute_cb(byte, instruction_str);
+		break;
 	case 0xcc:
 		/* call z, nn */
 		addr = mem_fetch16();
@@ -1670,11 +1649,6 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		}
 		cycles = 12;
 		if (DEBUG) sprintf(instruction_str, "call z, $%04x", addr);
-		break;
-	case 0xcb:
-		/* extra cb instructions */
-		byte = mem_fetch8();
-		cycles = cpu_execute_cb(byte, instruction_str);
 		break;
 	case 0xcd:
 		/* call nn */
@@ -1698,6 +1672,13 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "add a, #");
 		break;
+	case 0xcf:
+		/* rst $8 */
+		cpu_push_stack(REG_PC);
+		REG_PC = 0x8;
+		cycles = 32;
+		if (DEBUG) sprintf(instruction_str, "rst $8");
+		break;
 	case 0xd0:
 		/* ret nc */
 		if (cpu_nc()) REG_PC = cpu_pop_stack();
@@ -1717,6 +1698,10 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		cycles = 12;
 		if (DEBUG) sprintf(instruction_str, "jp nc, $%04x", addr);
 		break;
+	case 0xd3:
+		/* invalid instruction */
+		if (DEBUG) sprintf(instruction_str, "invalid instruction d3");
+		break;
 	case 0xd4:
 		/* call nc, nn */
 		addr = mem_fetch16();
@@ -1726,6 +1711,12 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		}
 		cycles = 12;
 		if (DEBUG) sprintf(instruction_str, "call nc, $%04x", addr);
+		break;
+	case 0xd5:
+		/* push de */
+		cpu_push_stack(REG_DE);
+		cycles = 16;
+		if (DEBUG) sprintf(instruction_str, "push de");
 		break;
 	case 0xd6:
 		/* sub a, # */
@@ -1752,12 +1743,6 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "ret c");
 		break;
-	case 0xd5:
-		/* push de */
-		cpu_push_stack(REG_DE);
-		cycles = 16;
-		if (DEBUG) sprintf(instruction_str, "push de");
-		break;
 	case 0xd9:
 		/* reti */
 		REG_PC = cpu_pop_stack();
@@ -1771,6 +1756,24 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		if (cpu_c()) REG_PC = addr;
 		cycles = 12;
 		if (DEBUG) sprintf(instruction_str, "jp c, $%04x", addr);
+		break;
+	case 0xdb:
+		/* invalid instruction */
+		if (DEBUG) sprintf(instruction_str, "invalid instruction db");
+		break;
+	case 0xdc:
+		/* call c, nn */
+		addr = mem_fetch16();
+		if (cpu_c()) {
+			cpu_push_stack(REG_PC);
+			REG_PC = addr;
+		}
+		cycles = 12;
+		if (DEBUG) sprintf(instruction_str, "call c, $%04x", addr);
+		break;
+	case 0xdd:
+		/* invalid instruction */
+		if (DEBUG) sprintf(instruction_str, "invalid instruction dd");
 		break;
 	case 0xde:
 		/* sbc a, # */
@@ -1804,6 +1807,14 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		mem_write8(0xff00 + REG_C, REG_A);
 		cycles = 8;
 		if (DEBUG) sprintf(instruction_str, "ld ($ff00+c), a");
+		break;
+	case 0xe3:
+		/* invalid instruction */
+		if (DEBUG) sprintf(instruction_str, "invalid instruction e3");
+		break;
+	case 0xe4:
+		/* invalid instruction */
+		if (DEBUG) sprintf(instruction_str, "invalid instruction e4");
 		break;
 	case 0xe5:
 		/* push hl */
@@ -1863,6 +1874,18 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		cycles = 16;
 		if (DEBUG) sprintf(instruction_str, "ld ($%04x), a", addr);
 		break;
+	case 0xeb:
+		/* invalid instruction */
+		if (DEBUG) sprintf(instruction_str, "invalid instruction eb");
+		break;
+	case 0xec:
+		/* invalid instruction */
+		if (DEBUG) sprintf(instruction_str, "invalid instruction ec");
+		break;
+	case 0xed:
+		/* invalid instruction */
+		if (DEBUG) sprintf(instruction_str, "invalid instruction ed");
+		break;
 	case 0xee:
 		/* xor # */
 		byte = mem_fetch8();
@@ -1889,11 +1912,19 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		cycles = 12;
 		if (DEBUG) sprintf(instruction_str, "pop af");
 		break;
+	case 0xf2:
+		/* invalid instruction */
+		if (DEBUG) sprintf(instruction_str, "invalid instruction f2");
+		break;
 	case 0xf3:
 		/* disable int */
 		cpu_state.interrupts = 0;
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "di");
+		break;
+	case 0xf4:
+		/* invalid instruction */
+		if (DEBUG) sprintf(instruction_str, "invalid instruction f4");
 		break;
 	case 0xf5:
 		/* push af */
@@ -1951,17 +1982,20 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		cycles = 4;
 		if (DEBUG) sprintf(instruction_str, "ei");
 		break;
+	case 0xfc:
+		/* invalid instruction */
+		if (DEBUG) sprintf(instruction_str, "invalid instruction fc");
+		break;
+	case 0xfd:
+		/* invalid instruction */
+		if (DEBUG) sprintf(instruction_str, "invalid instruction fd");
+		break;
 	case 0xfe:
 		/* cp a, n */
 		byte = mem_fetch8();
-		result = REG_A - byte;
-		result4 = (REG_A & 0xf) - (byte & 0xf);
-		cpu_set_flag(FLAG_Z, REG_A == byte);
-		cpu_set_flag(FLAG_N, 1);
-		cpu_set_flag(FLAG_H, result4 < 0);
-		cpu_set_flag(FLAG_C, REG_A < byte);
+		cp(&byte);
 		cycles = 8;
-		if (DEBUG) sprintf(instruction_str, "cp a, $%02hx", byte);
+		if (DEBUG) sprintf(instruction_str, "cp a, $%02hhx", byte);
 		break;
 	case 0xff:
 		/* rst $38 */
@@ -1972,7 +2006,7 @@ uint8_t cpu_execute(uint8_t op, char* instruction_str) {
 		break;
 
 	default:
-		printf("Unimplemented instruction %02hx at $%04x\n", op, REG_PC - 1);
+		printf("Unimplemented instruction %02hhx at $%04x\n", op, REG_PC - 1);
 		exit(1);
 		break;
 	}
@@ -2024,8 +2058,6 @@ uint8_t *cb_reg_table[8] = {&REG_B, &REG_C, &REG_D, &REG_E, &REG_H, &REG_L, 0, &
 char *cb_reg_table_str[8] = {"b", "c", "d", "e", "h", "l", "(hl)", "a"};
 uint8_t cb_cycle_table[8] = {8, 8, 8, 8, 8, 8, 16, 8};
 uint8_t cpu_execute_cb(uint8_t op, char* instruction_str) {
-	uint32_t result;
-	uint8_t byte;
 	uint8_t cycles;
 
 	uint8_t x, y, z;
