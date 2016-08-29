@@ -150,7 +150,27 @@ void gpu_draw_screen(uint16_t *buffer) {
 		}
 	}
 
-	uint8_t x, y, id, flags;
+	uint16_t x, y, win_ptr = 0x9800;
+
+	if (REG_LCDC & LCDC_WINDOW_TILE_MAP_SELECT) {
+		win_ptr = 0x9c00;
+	}
+
+	if (REG_LCDC & LCDC_WINDOW_ON) {
+		for (r = 0; r < 14; r++) {
+			for (c = 0; c < 20; c++) {
+				tile_id = mem_read8(win_ptr++);
+				tile_addr = get_tile_addr(tile_id);
+				x = c * 8 + REG_WX - 7;
+				y = r * 8 + REG_WY;
+				if (tile_id && x < 167 && y < 144) {
+					gpu_draw_tile(tile_addr, buffer, c * 8 + REG_WX - 7, r * 8 + REG_WY);
+				}
+			}
+		}
+	}
+
+	uint8_t id, flags;
 	uint16_t sprite_addr = 0xfe00;
 	if (REG_LCDC & LCDC_SHOW_SPRITES) {
 		for (r = 0; r < 40; r++) {

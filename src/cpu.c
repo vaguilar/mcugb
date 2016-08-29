@@ -2153,7 +2153,7 @@ void cpu_debug() {
 }
 
 void cpu_debug_stack() {
-	uint32_t stack_ptr = REG_SP;
+	uint16_t stack_ptr = REG_SP;
 	uint8_t i = 0;
 
 	printf("Stack:\n");

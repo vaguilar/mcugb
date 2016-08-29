@@ -1,10 +1,11 @@
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "cpu.h"
 #include "mem.h"
 
-uint8_t assert_equals(uint32_t expected, uint32_t actual) {
+void assert_equals(uint32_t expected, uint32_t actual) {
 	if (expected != actual) {
 		printf("Assert FAILED. Expected value: %04hx, actual %04hx\n", expected, actual);
 		exit(1);
@@ -127,9 +128,28 @@ uint8_t test3() {
 	return 1;
 }
 
+/* testing cp */
+uint8_t test4() {
+	REG_AF = 0x0020;
+	REG_HL = 0x0002;
+	cp(&REG_L);
+	assert_equals(REG_AF, 0x0070);
+
+	REG_AF = 0x0c50;
+	REG_HL = 0x8900;
+	cp(&REG_H);
+	assert_equals(REG_AF, 0x0c50);
+
+	REG_AF = 0xee50;
+	REG_HL = 0x8900;
+	cp(&REG_H);
+	assert_equals(REG_AF, 0xee40);
+	return 1;
+}
+
 void run_tests() {
-	char *tests_names[] = {"basicProgram", "addCorrectResult", "rclaCorrectResult", "subCorrectResult", 0};
-	uint8_t (*tests[])() = {test0, test1, test2, test3, 0};
+	char *tests_names[] = {"basicProgram", "addCorrectResult", "rclaCorrectResult", "subCorrectResult", "cpCorrectResult", 0};
+	uint8_t (*tests[])() = {test0, test1, test2, test3, test4, 0};
 	uint8_t i, result;
 
 	for (i = 0; tests[i]; i++) {

@@ -13,7 +13,11 @@ uint8_t MEM[65536] = {0};
 uint8_t mem_read8(uint16_t addr) {
 	if (DEBUG && addr == 0xff40) printf("Reading MM register, [%04x]\n", addr);
 	if (DEBUG && addr == 0xff44) printf("Reading LY register, [%04x] = %02x\n", addr, MEM[addr]);
-	if (addr >= 0xff00) {}
+
+	/* RAM echo */
+	if (0xe000 <= addr && addr < 0xfe00) {
+		addr = addr - 0x1000;
+	}
 	return MEM[addr];
 }
 

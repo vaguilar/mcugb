@@ -89,3 +89,8 @@ uint8_t cpu_execute_cb(uint8_t op, char* instruction_str);
 
 void cpu_set_joypad(uint8_t directional, uint8_t button);
 void cpu_unset_joypad(uint8_t directional, uint8_t button);
+
+void inc8(uint8_t*);
+void dec8(uint8_t*);
+void sub(uint8_t*);
+void cp(uint8_t*);
