@@ -89,6 +89,11 @@ uint8_t debugger_cmd(char *cmd) {
 		debugger_help();
 		break;
 
+	case 'i':
+		/* info (list register) */
+		debugger_info();
+		break;
+
 	case 'l':
 		/* list break points */
 		debugger_list_breakpoints();
@@ -123,6 +128,7 @@ void debugger_help() {
 	printf("  c -- Continue rom execution\n");
 	printf("  d -- Delete breakpoint e.g. d 12ab\n");
 	printf("  h -- This menu\n");
+	printf("  i -- CPU info\n");
 	printf("  l -- List breakpoints\n");
 	printf("  r -- Run rom\n");
 	printf("  s -- Step, execute one instruction\n");
@@ -166,4 +172,8 @@ uint8_t debugger_in_breakpoints(uint16_t addr) {
 		if (breakpoints[i] == addr) return 1;
 	}
 	return 0;
+}
+
+void debugger_info() {
+	cpu_debug();
 }

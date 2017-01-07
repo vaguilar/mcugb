@@ -17,6 +17,8 @@ SDL_Texture* Texture = NULL;
 SDL_Rect SrcRect;
 SDL_Rect DestRect;
 
+uint8_t const SCALE_FACTOR = 3;
+
 pthread_t debugger_thread;
 pthread_mutex_t mutex;
 volatile uint8_t RUNNING = 0;
@@ -34,7 +36,7 @@ uint8_t init_win() {
 	}
 
 	/* set 2x */
-	SDL_SetWindowSize(Window, 160 * 2, 144 * 2);
+	SDL_SetWindowSize(Window, 160 * SCALE_FACTOR, 144 * SCALE_FACTOR);
 
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
 	SDL_RenderSetLogicalSize(Renderer, 160, 144);
