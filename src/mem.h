@@ -17,5 +17,6 @@ uint8_t mem_fetch8();
 uint16_t mem_fetch16();
 void mem_dma(uint16_t addr);
 void mem_load_program(uint16_t addr, uint8_t *program, uint16_t size);
+void mem_debug(uint16_t, uint16_t);
 
 uint8_t MEM[65536];

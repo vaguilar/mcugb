@@ -17,7 +17,7 @@ SDL_Texture* Texture = NULL;
 SDL_Rect SrcRect;
 SDL_Rect DestRect;
 
-uint8_t const SCALE_FACTOR = 3;
+uint8_t const SCALE_FACTOR = 2;
 
 pthread_t debugger_thread;
 pthread_mutex_t mutex;
@@ -35,7 +35,7 @@ uint8_t init_win() {
 		return 0;
 	}
 
-	/* set 2x */
+	/* set scale */
 	SDL_SetWindowSize(Window, 160 * SCALE_FACTOR, 144 * SCALE_FACTOR);
 
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
@@ -120,7 +120,7 @@ uint8_t handle_event(SDL_Event *Event) {
 
 uint8_t main(int argc, char **argv) {
 	FILE *fp;
-	uint32_t i, j, cycles;
+	uint32_t cycles;
 	uint16_t buffer[256 * 256] = {0};
 	uint8_t redraw = 0;
 	SDL_Event Event;

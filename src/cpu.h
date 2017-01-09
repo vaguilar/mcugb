@@ -94,3 +94,4 @@ void inc8(uint8_t*);
 void dec8(uint8_t*);
 void sub(uint8_t*);
 void cp(uint8_t*);
+void daa();

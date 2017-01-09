@@ -7,7 +7,7 @@
 
 void assert_equals(uint32_t expected, uint32_t actual) {
 	if (expected != actual) {
-		printf("Assert FAILED. Expected value: %04hx, actual %04hx\n", expected, actual);
+		printf("Assert FAILED. Expected value: 0x%04x, actual 0x%04x\n", expected, actual);
 		exit(1);
 	}
 }
@@ -147,9 +147,23 @@ uint8_t test4() {
 	return 1;
 }
 
+/* testing daa instruction */
+uint8_t test_daa() {
+	REG_AF = 0x3C00;
+	daa();
+	assert_equals(0x42, REG_A);
+	assert_equals(0x00, REG_F);
+
+	REG_AF = 0xAA00;
+	daa();
+	assert_equals(0x10, REG_A);
+	assert_equals(0x10, REG_F);
+	return 1;
+}
+
 void run_tests() {
-	char *tests_names[] = {"basicProgram", "addCorrectResult", "rclaCorrectResult", "subCorrectResult", "cpCorrectResult", 0};
-	uint8_t (*tests[])() = {test0, test1, test2, test3, test4, 0};
+	char *tests_names[] = {"basicProgram", "addCorrectResult", "rclaCorrectResult", "subCorrectResult", "cpCorrectResult", "daaCorrectResult", 0};
+	uint8_t (*tests[])() = {test0, test1, test2, test3, test4, test_daa, 0};
 	uint8_t i, result;
 
 	for (i = 0; tests[i]; i++) {
