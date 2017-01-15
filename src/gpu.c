@@ -102,7 +102,8 @@ void gpu_draw_tile(uint16_t src_addr, uint16_t *dst_buffer, uint16_t x, uint16_t
 void gpu_draw_sprite(uint16_t src_addr, uint16_t *dst_buffer, uint16_t x, uint16_t y, uint8_t flags) {
 	uint32_t r, c, color_index, line1, line2;
 
-	if ((flags & SPRITE_PRIORITY) == 0) return;
+	/* TODO fix this */
+	//if ((flags & SPRITE_PRIORITY) == 0) return;
 
 	for (r = 0; r < 8; r++) {
 		line1 = mem_read8(src_addr++);
@@ -157,14 +158,14 @@ void gpu_draw_screen(uint16_t *buffer) {
 	}
 
 	if (REG_LCDC & LCDC_WINDOW_ON) {
-		for (r = 0; r < 14; r++) {
-			for (c = 0; c < 20; c++) {
+		for (r = 0; r < 32; r++) {
+			for (c = 0; c < 32; c++) {
 				tile_id = mem_read8(win_ptr++);
 				tile_addr = get_tile_addr(tile_id);
 				x = c * 8 + REG_WX - 7;
 				y = r * 8 + REG_WY;
 				if (tile_id && x < 167 && y < 144) {
-					gpu_draw_tile(tile_addr, buffer, c * 8 + REG_WX - 7, r * 8 + REG_WY);
+					gpu_draw_tile(tile_addr, buffer, x, y);
 				}
 			}
 		}
