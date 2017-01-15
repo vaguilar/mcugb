@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <pthread.h>
+#include <string.h>
+#include <stdlib.h>
 
 #include "debugger.h"
 #include "cpu.h"
@@ -40,7 +42,7 @@ void debugger_set_state(uint8_t state) {
 uint8_t debugger_cmd(char *cmd) {
 	uint16_t addr = 0;	
 	uint16_t ret = 0;
-	uint8_t *tok;
+	char *tok;
 	tok = strtok(cmd, " ");
 
 	switch(*tok) {

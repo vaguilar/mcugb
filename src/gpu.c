@@ -102,7 +102,7 @@ void gpu_draw_tile(uint16_t src_addr, uint16_t *dst_buffer, uint16_t x, uint16_t
 void gpu_draw_sprite(uint16_t src_addr, uint16_t *dst_buffer, uint16_t x, uint16_t y, uint8_t flags) {
 	uint32_t r, c, color_index, line1, line2;
 
-	if (flags & SPRITE_PRIORITY == 0) return;
+	if ((flags & SPRITE_PRIORITY) == 0) return;
 
 	for (r = 0; r < 8; r++) {
 		line1 = mem_read8(src_addr++);

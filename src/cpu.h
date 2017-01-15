@@ -78,6 +78,8 @@ void cpu_debug();
 void cpu_debug_stack();
 void cpu_push_stack(uint16_t word);
 uint16_t cpu_pop_stack();
+void cpu_set_interrupt(uint8_t interrupt);
+void cpu_unset_interrupt(uint8_t interrupt);
 
 void cpu_set_flags8(uint8_t prev, uint8_t curr, uint8_t subtraction);
 void cpu_set_flags16(uint16_t prev, uint16_t curr, uint8_t subtraction);

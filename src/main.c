@@ -118,7 +118,7 @@ uint8_t handle_event(SDL_Event *Event) {
 	return 0;
 }
 
-uint8_t main(int argc, char **argv) {
+int main(int argc, char **argv) {
 	FILE *fp;
 	uint32_t cycles;
 	uint16_t buffer[256 * 256] = {0};
@@ -146,7 +146,7 @@ uint8_t main(int argc, char **argv) {
 		return 1;
 	}
 
-	if(pthread_create(&debugger_thread, 0, debugger_main, &RUNNING)) {
+	if(pthread_create(&debugger_thread, 0, debugger_main, (void *) &RUNNING)) {
 		printf("Unable to start debugger thread");
 		return 1;
 	}
