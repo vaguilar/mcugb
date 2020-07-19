@@ -1,29 +1,14 @@
 extern crate sdl2;
 
 mod cpu;
+mod memory;
+mod gb;
 
-use memmap::MmapOptions;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use std::env;
-use std::fs::File;
 use std::thread::sleep;
 use std::time::Duration;
-
-/*
-#include "tests.h"
-#include "cpu.h"
-#include "mem.h"
-#include "gpu.h"
-#include "debugger.h"
-
-SDL_Window* Window = NULL;
-SDL_Renderer* Renderer = NULL;
-SDL_Surface* PrimarySurface = NULL;
-SDL_Texture* Texture = NULL;
-SDL_Rect SrcRect;
-SDL_Rect DestRect;
-*/
 
 static SCALE_FACTOR: u8 = 2;
 
@@ -60,73 +45,73 @@ uint8_t init_win() {
 
     return 1;
 }
-
-uint8_t handle_event(SDL_Event *Event) {
-    if (Event->type == SDL_QUIT) {
-        return 1;
-
-    } else if (Event->type == SDL_KEYDOWN) {
-        switch (Event->key.keysym.sym) {
-        case SDLK_DOWN:
-            cpu_set_joypad(1, 3);
-            break;
-        case SDLK_UP:
-            cpu_set_joypad(1, 2);
-            break;
-        case SDLK_LEFT:
-            cpu_set_joypad(1, 1);
-            break;
-        case SDLK_RIGHT:
-            cpu_set_joypad(1, 0);
-            break;
-        case SDLK_v:
-            cpu_set_joypad(0, 3);
-            break;
-        case SDLK_c:
-            cpu_set_joypad(0, 2);
-            break;
-        case SDLK_z:
-            cpu_set_joypad(0, 1);
-            break;
-        case SDLK_x:
-            cpu_set_joypad(0, 0);
-            break;
-        }
-
-    } else if (Event->type == SDL_KEYUP) {
-        switch (Event->key.keysym.sym) {
-        case SDLK_DOWN:
-            cpu_unset_joypad(1, 3);
-            break;
-        case SDLK_UP:
-            cpu_unset_joypad(1, 2);
-            break;
-        case SDLK_LEFT:
-            cpu_unset_joypad(1, 1);
-            break;
-        case SDLK_RIGHT:
-            cpu_unset_joypad(1, 0);
-            break;
-        case SDLK_v:
-            cpu_unset_joypad(0, 3);
-            break;
-        case SDLK_c:
-            cpu_unset_joypad(0, 2);
-            break;
-        case SDLK_z:
-            cpu_unset_joypad(0, 1);
-            break;
-        case SDLK_x:
-            cpu_unset_joypad(0, 0);
-            break;
-        case SDLK_ESCAPE:
-            /* pause game */
-            debugger_set_state(0);
-        }
-    }
-    return 0;
-}
 */
+
+fn handle_event(event: &Event, gb: &gb::GB) -> bool {
+    match event {
+        Event::Quit { .. } | Event::KeyDown {
+            keycode: Some(Keycode::Escape),
+            ..
+        } => return true,
+
+        // KeyDown
+        Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
+            gb.set_joypad(1, 3);
+        }
+        Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
+            gb.set_joypad(1, 2);
+        }
+        Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
+            gb.set_joypad(1, 1);
+        }
+        Event::KeyDown { keycode: Some(Keycode::Right), .. } => {
+            gb.set_joypad(1, 0);
+        }
+        Event::KeyDown { keycode: Some(Keycode::V), .. } => {
+            gb.set_joypad(0, 3);
+        }
+        Event::KeyDown { keycode: Some(Keycode::C), .. } => {
+            gb.set_joypad(0, 2);
+        }
+        Event::KeyDown { keycode: Some(Keycode::Z), .. } => {
+            gb.set_joypad(0, 1);
+        }
+        Event::KeyDown { keycode: Some(Keycode::X), .. } => {
+            gb.set_joypad(0, 0);
+        }
+
+        // KeyUp
+        Event::KeyUp { keycode: Some(Keycode::Down), .. } => {
+            gb.unset_joypad(1, 3);
+        }
+        Event::KeyUp { keycode: Some(Keycode::Up), .. } => {
+            gb.unset_joypad(1, 2);
+        }
+        Event::KeyUp { keycode: Some(Keycode::Left), .. } => {
+            gb.unset_joypad(1, 1);
+        }
+        Event::KeyUp { keycode: Some(Keycode::Right), .. } => {
+            gb.unset_joypad(1, 0);
+        }
+        Event::KeyUp { keycode: Some(Keycode::V), .. } => {
+            gb.unset_joypad(0, 3);
+        }
+        Event::KeyUp { keycode: Some(Keycode::C), .. } => {
+            gb.unset_joypad(0, 2);
+        }
+        Event::KeyUp { keycode: Some(Keycode::Z), .. } => {
+            gb.unset_joypad(0, 1);
+        }
+        Event::KeyUp { keycode: Some(Keycode::X), .. } => {
+            gb.unset_joypad(0, 0);
+        }
+        Event::KeyUp { keycode: Some(Keycode::Escape), .. } => {
+            //debugger_set_state(0);
+        }
+        _ => {}
+    }
+    false
+}
 
 fn find_sdl_gl_driver() -> Option<u32> {
     for (index, item) in sdl2::render::drivers().enumerate() {
@@ -141,9 +126,6 @@ fn main() {
     let mut cycles: u32 = 0;
     let mut buffer: [u16; 256 * 256];
     let mut redraw = false;
-    //SDL_Event Event;
-
-    //run_tests();
 
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -151,15 +133,10 @@ fn main() {
         return ();
     }
 
-    let file = File::open(&args[1]).unwrap();
-    let mmap = unsafe { MmapOptions::new().map(&file).unwrap() };
+    let rom_path = &args[1];
 
-    //mem_load_rom(argv[1]);
     //mem_rom_headers();
     //system_load_rom_bank(1);
-
-    //cpu_reset();
-    //REG_PC = 0x0100;
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
@@ -176,19 +153,17 @@ fn main() {
         .unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    let cpu_register = cpu::CPURegisters::new();
+    let cpu = cpu::CPU::new();
+    let gb = gb::GB::with_rom(&rom_path);
 
     'running: loop {
         for event in event_pump.poll_iter() {
-            match event {
-                Event::Quit { .. }
-                | Event::KeyDown {
-                    keycode: Some(Keycode::Escape),
-                    ..
-                } => break 'running,
-                _ => {}
+            if handle_event(&event, &gb) {
+                break 'running
             }
         }
+
+        gb.step();
 
         canvas.clear();
         canvas.present();
