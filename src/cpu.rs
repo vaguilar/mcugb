@@ -20,8 +20,6 @@ pub struct CPU {
     pub interrupt_flag: bool,
     pub timer_cycles: u16,
     pub divider_cycles: u16,
-
-    pub joypad_states: [u8; 2],
 }
 
 #[derive(Default)]
@@ -63,7 +61,6 @@ impl CPU {
             interrupt_flag: false,
             timer_cycles: 0,
             divider_cycles: 0,
-            joypad_states: [0, 0],
         }
     }
 

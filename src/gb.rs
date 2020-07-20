@@ -18,14 +18,14 @@ impl GB {
 
     pub fn set_joypad(&mut self, directional: usize, button: u8) {
         let mask = 1 << button;
-        if self.cpu.joypad_states[directional] & mask != 0 {
-            self.cpu.joypad_states[directional] &= !mask;
+        if self.cpu.mem.joypad_states[directional] & mask != 0 {
+            self.cpu.mem.joypad_states[directional] &= !mask;
             self.cpu.set_interrupt(Interrupt::JoyPad);
         }
     }
 
     pub fn unset_joypad(&mut self, directional: usize, button: u8) {
-        self.cpu.joypad_states[directional] |= 1 << button;
+        self.cpu.mem.joypad_states[directional] |= 1 << button;
     }
 
     pub fn step(&mut self) {
