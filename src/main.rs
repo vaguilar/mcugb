@@ -47,7 +47,7 @@ uint8_t init_win() {
 }
 */
 
-fn handle_event(event: &Event, gb: &gb::GB) -> bool {
+fn handle_event(event: &Event, gb: &mut gb::GB) -> bool {
     match event {
         Event::Quit { .. } | Event::KeyDown {
             keycode: Some(Keycode::Escape),
@@ -153,12 +153,11 @@ fn main() {
         .unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    let cpu = cpu::CPU::new();
-    let gb = gb::GB::with_rom(&rom_path);
+    let mut gb = gb::GB::with_rom(&rom_path);
 
     'running: loop {
         for event in event_pump.poll_iter() {
-            if handle_event(&event, &gb) {
+            if handle_event(&event, &mut gb) {
                 break 'running
             }
         }

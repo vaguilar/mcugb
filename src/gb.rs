@@ -1,11 +1,10 @@
-use crate::cpu::CPU;
+use crate::cpu::{CPU, Interrupt};
 use crate::memory::Memory;
 use std::fs::File;
 use memmap::MmapOptions;
 
 pub struct GB {
     cpu: CPU,
-    mem: Memory,
 }
 
 impl GB {
@@ -13,23 +12,23 @@ impl GB {
         let rom_file = File::open(path).unwrap();
         let rom = unsafe { MmapOptions::new().map(&rom_file).unwrap() };
         GB {
-            cpu: CPU::new(),
-            mem: Memory::with_rom(rom),
+            cpu: CPU::new(Memory::with_rom(rom)),
         }
     }
 
-    pub fn step(&self) {
+    pub fn set_joypad(&mut self, directional: usize, button: u8) {
+        let mask = 1 << button;
+        if self.cpu.joypad_states[directional] & mask != 0 {
+            self.cpu.joypad_states[directional] &= !mask;
+            self.cpu.set_interrupt(Interrupt::JoyPad);
+        }
     }
 
-    pub fn set_joypad(&self, directional: u8, button: u8) {
-        // let mask = (1 << button);
-        // if (cpu_joypad_states[directional] & mask) {
-        //     cpu_joypad_states[directional] &= ~mask;
-        //     self.cpu.interrupt(INT_JOYPAD);
-        // }
+    pub fn unset_joypad(&mut self, directional: usize, button: u8) {
+        self.cpu.joypad_states[directional] |= 1 << button;
     }
 
-    pub fn unset_joypad(&self, directional: u8, button: u8) {
-        // cpu_joypad_states[directional] |= 1 << button;
+    pub fn step(&mut self) {
+        self.cpu.step();
     }
 }
