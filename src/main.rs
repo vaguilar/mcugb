@@ -154,6 +154,9 @@ fn main() {
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     let mut gb = gb::GB::with_rom(&rom_path);
+    gb.reset();
+
+    println!("ROM Title: {:?}", gb.rom_title);
 
     'running: loop {
         for event in event_pump.poll_iter() {

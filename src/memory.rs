@@ -15,20 +15,24 @@ impl Memory {
         }
     }
 
-    pub fn read8(&self, addr: &u16) -> u8 {
+    pub fn read8(&self, addr: u16) -> u8 {
         let mut offset: u16 = 0;
 
+        if addr < 0x4000 {
+            return self.rom[addr as usize];
+        }
+
         // RAM echo
-        if 0xe000 <= *addr && *addr < 0xfe00 {
+        if 0xe000 <= addr && addr < 0xfe00 {
             offset = 0x1000;
         }
 
-        self.data[(*addr - offset) as usize]
+        self.data[(addr - offset) as usize]
     }
     
-    pub fn read16(&self, addr: &u16) -> u16 {
-        let top: u16 = self.data[*addr as usize] as u16;
-        let bottom: u16 = (self.data[(*addr + 1) as usize] as u16) << 8;
+    pub fn read16(&self, addr: u16) -> u16 {
+        let top: u16 = self.read8(addr) as u16;
+        let bottom: u16 = (self.read8(addr + 1) as u16) << 8;
         bottom | top
     }
 

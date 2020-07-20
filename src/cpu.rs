@@ -12,7 +12,7 @@ pub struct CPU {
     pub pc: u16,
     pub sp: u16,
     pub mem: Memory,
-    pub registers: Registers,
+    pub reg: Registers,
 
     pub halt: bool,
     pub interrupts: bool,
@@ -54,7 +54,7 @@ impl CPU {
             pc: 0x0100,
             sp: 0xffff,
             mem: mem,
-            registers: Default::default(), 
+            reg: Default::default(),
             halt: false,
             interrupts: false,
             interrupt_enable: false,
@@ -70,7 +70,7 @@ impl CPU {
     }
 
     pub fn pop_stack(&mut self) -> u16 {
-        let result = self.mem.read16(&self.sp);
+        let result = self.mem.read16(self.sp);
         self.sp += 2;
         result
     }
@@ -88,13 +88,21 @@ impl CPU {
     }
 
     pub fn fetch8(&mut self) -> u8 {
-        let result = self.mem.read8(&self.pc);
+        let result = self.mem.read8(self.pc);
         self.pc += 1;
+        result
+    }
+
+    pub fn fetch16(&mut self) -> u16 {
+        let result = self.mem.read16(self.pc);
+        eprintln!("FETCH16 Got 0x{:04X} at PC=0x{:04x}", result, self.pc);
+        self.pc += 2;
         result
     }
 
     pub fn step(&mut self) -> u16 {
         let op = self.fetch8();
+        eprintln!("Found 0x{:02X} at PC=0x{:04x}", op, self.pc);
 
         let mut cycles: u16 = 0;
 
@@ -169,11 +177,44 @@ impl CPU {
         }
     }
 
-    fn execute(&self, op: u8) -> u16 {
-        0
+    fn execute(&mut self, op: u8) -> u16 {
+        match op {
+            0x00 => 0,
+            0x01 => {
+                // ld bc, nn
+                self.reg.r16.bc = self.fetch16();
+                0
+            }
+            0x01 => {
+                // ld (bc), a
+		        self.mem.write8(self.reg.r16.bc, self.reg.r8.a);
+                self.reg.r16.bc = self.fetch16();
+                0
+            }
+            0xaf => {
+                // xor a, a
+                self.reg.r8.a = 0;
+                4
+            }
+            0xc3 => {
+                // jp nn
+                self.pc = self.fetch16();
+                eprintln!("PC is now 0x{:04X}", self.pc);
+                12
+            }
+            _ => {
+                eprintln!("Unhandled instruction: 0x{:02X}", op);
+                std::process::exit(1);
+            }
+        }
     }
 
     fn execute_cb(&self, op: u8) -> u16 {
-        0
+        match op {
+            _ => {
+                eprintln!("Unhandled instruction: 0xCB 0x{:02X}", op);
+                std::process::exit(1);
+            }
+        }
     }
 }
