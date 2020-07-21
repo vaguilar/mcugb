@@ -29,7 +29,6 @@ impl Memory {
 
         self.data[(addr - offset) as usize]
     }
-    
     pub fn read16(&self, addr: u16) -> u16 {
         let top: u16 = self.read8(addr) as u16;
         let bottom: u16 = (self.read8(addr + 1) as u16) << 8;
@@ -41,18 +40,15 @@ impl Memory {
         if addr < 0x8000 {
             if addr < 0x2000 {
                 // ???
-
             } else if addr < 0x4000 {
                 // ROM bank select (0 points to one as well)
                 // BANK = val ? val : 1;
                 println!("Switching to ROM bank {}\n", val);
 
                 let new_val = if val == 0 { 1 } else { val };
-                // memcpy
-
+            // memcpy
             } else if addr < 0x6000 {
                 // ???
-
             } else {
                 // memory mode select
                 // MEMORY_MODE = val & 1;
@@ -70,21 +66,17 @@ impl Memory {
             } else if addr == 0xff04 {
                 // divider register
                 *self.reg_div() = 0;
-
             } else if addr == 0xff40 {
                 // lcdc
                 *self.reg_lcdc() = val;
-                // ???
-
+            // ???
             } else if addr == 0xff41 {
                 // lcdc stat
                 *self.reg_stat() = val;
-
             } else if addr == 0xff46 {
                 // dma
                 *self.reg_dma() = val;
                 self.mem_dma((val as u16) << 8);
-
             } else {
                 self.data[addr as usize] = val;
                 //if (DEBUG && addr > 0xff00) printf("Writing to MM register, [%04x] = %02x at PC = %04x\n", addr, byte, REG_PC);
@@ -102,7 +94,6 @@ impl Memory {
         let end = start + 160;
         self.data.copy_within(start..end, 0xfe00)
     }
-    
     // Memory Mapped IO
 
     pub fn reg_joypad(&mut self) -> &mut u8 {
@@ -133,7 +124,23 @@ impl Memory {
         &mut self.data[0xff41]
     }
 
+    pub fn reg_scy(&mut self) -> &mut u8 {
+        &mut self.data[0xff42]
+    }
+
+    pub fn reg_scx(&mut self) -> &mut u8 {
+        &mut self.data[0xff43]
+    }
+
     pub fn reg_dma(&mut self) -> &mut u8 {
         &mut self.data[0xff47]
+    }
+
+    pub fn reg_wy(&mut self) -> &mut u8 {
+        &mut self.data[0xff4a]
+    }
+
+    pub fn reg_wx(&mut self) -> &mut u8 {
+        &mut self.data[0xff4b]
     }
 }

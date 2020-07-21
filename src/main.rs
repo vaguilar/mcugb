@@ -1,8 +1,9 @@
 extern crate sdl2;
 
 mod cpu;
-mod memory;
 mod gb;
+mod gpu;
+mod memory;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -49,63 +50,115 @@ uint8_t init_win() {
 
 fn handle_event(event: &Event, gb: &mut gb::GB) -> bool {
     match event {
-        Event::Quit { .. } | Event::KeyDown {
+        Event::Quit { .. }
+        | Event::KeyDown {
             keycode: Some(Keycode::Escape),
             ..
         } => return true,
 
         // KeyDown
-        Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
+        Event::KeyDown {
+            keycode: Some(Keycode::Down),
+            ..
+        } => {
             gb.set_joypad(1, 3);
         }
-        Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
+        Event::KeyDown {
+            keycode: Some(Keycode::Up),
+            ..
+        } => {
             gb.set_joypad(1, 2);
         }
-        Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
+        Event::KeyDown {
+            keycode: Some(Keycode::Left),
+            ..
+        } => {
             gb.set_joypad(1, 1);
         }
-        Event::KeyDown { keycode: Some(Keycode::Right), .. } => {
+        Event::KeyDown {
+            keycode: Some(Keycode::Right),
+            ..
+        } => {
             gb.set_joypad(1, 0);
         }
-        Event::KeyDown { keycode: Some(Keycode::V), .. } => {
+        Event::KeyDown {
+            keycode: Some(Keycode::V),
+            ..
+        } => {
             gb.set_joypad(0, 3);
         }
-        Event::KeyDown { keycode: Some(Keycode::C), .. } => {
+        Event::KeyDown {
+            keycode: Some(Keycode::C),
+            ..
+        } => {
             gb.set_joypad(0, 2);
         }
-        Event::KeyDown { keycode: Some(Keycode::Z), .. } => {
+        Event::KeyDown {
+            keycode: Some(Keycode::Z),
+            ..
+        } => {
             gb.set_joypad(0, 1);
         }
-        Event::KeyDown { keycode: Some(Keycode::X), .. } => {
+        Event::KeyDown {
+            keycode: Some(Keycode::X),
+            ..
+        } => {
             gb.set_joypad(0, 0);
         }
 
         // KeyUp
-        Event::KeyUp { keycode: Some(Keycode::Down), .. } => {
+        Event::KeyUp {
+            keycode: Some(Keycode::Down),
+            ..
+        } => {
             gb.unset_joypad(1, 3);
         }
-        Event::KeyUp { keycode: Some(Keycode::Up), .. } => {
+        Event::KeyUp {
+            keycode: Some(Keycode::Up),
+            ..
+        } => {
             gb.unset_joypad(1, 2);
         }
-        Event::KeyUp { keycode: Some(Keycode::Left), .. } => {
+        Event::KeyUp {
+            keycode: Some(Keycode::Left),
+            ..
+        } => {
             gb.unset_joypad(1, 1);
         }
-        Event::KeyUp { keycode: Some(Keycode::Right), .. } => {
+        Event::KeyUp {
+            keycode: Some(Keycode::Right),
+            ..
+        } => {
             gb.unset_joypad(1, 0);
         }
-        Event::KeyUp { keycode: Some(Keycode::V), .. } => {
+        Event::KeyUp {
+            keycode: Some(Keycode::V),
+            ..
+        } => {
             gb.unset_joypad(0, 3);
         }
-        Event::KeyUp { keycode: Some(Keycode::C), .. } => {
+        Event::KeyUp {
+            keycode: Some(Keycode::C),
+            ..
+        } => {
             gb.unset_joypad(0, 2);
         }
-        Event::KeyUp { keycode: Some(Keycode::Z), .. } => {
+        Event::KeyUp {
+            keycode: Some(Keycode::Z),
+            ..
+        } => {
             gb.unset_joypad(0, 1);
         }
-        Event::KeyUp { keycode: Some(Keycode::X), .. } => {
+        Event::KeyUp {
+            keycode: Some(Keycode::X),
+            ..
+        } => {
             gb.unset_joypad(0, 0);
         }
-        Event::KeyUp { keycode: Some(Keycode::Escape), .. } => {
+        Event::KeyUp {
+            keycode: Some(Keycode::Escape),
+            ..
+        } => {
             //debugger_set_state(0);
         }
         _ => {}
@@ -161,7 +214,7 @@ fn main() {
     'running: loop {
         for event in event_pump.poll_iter() {
             if handle_event(&event, &mut gb) {
-                break 'running
+                break 'running;
             }
         }
 

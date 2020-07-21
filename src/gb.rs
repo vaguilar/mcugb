@@ -1,13 +1,16 @@
-use crate::cpu::{CPU, Interrupt};
+use crate::cpu::{Interrupt, CPU};
+use crate::gpu::GPU;
 use crate::memory::Memory;
-use std::fs::File;
-use std::ffi::CStr;
 use memmap::MmapOptions;
+use std::ffi::CStr;
+use std::fs::File;
 
 pub struct GB {
     pub rom_path: String,
     pub rom_title: String,
+    mem: Memory,
     cpu: CPU,
+    gpu: GPU,
 }
 
 impl GB {
@@ -18,31 +21,37 @@ impl GB {
         GB {
             rom_path: path.to_string(),
             rom_title: unsafe { CStr::from_ptr(title_ptr.as_ptr() as *const i8) }
-                .to_str().unwrap().to_owned(),
-            cpu: CPU::new(Memory::with_rom(rom)),
+                .to_str()
+                .unwrap()
+                .to_owned(),
+            mem: Memory::with_rom(rom),
+            cpu: CPU::new(),
+            gpu: GPU { mode: 0 },
         }
     }
 
     pub fn set_joypad(&mut self, directional: usize, button: u8) {
         let mask = 1 << button;
-        if self.cpu.mem.joypad_states[directional] & mask != 0 {
-            self.cpu.mem.joypad_states[directional] &= !mask;
-            self.cpu.set_interrupt(Interrupt::JoyPad);
+        if self.mem.joypad_states[directional] & mask != 0 {
+            self.mem.joypad_states[directional] &= !mask;
+            self.cpu.set_interrupt(&mut self.mem, Interrupt::JoyPad);
         }
     }
 
     pub fn unset_joypad(&mut self, directional: usize, button: u8) {
-        self.cpu.mem.joypad_states[directional] |= 1 << button;
+        self.mem.joypad_states[directional] |= 1 << button;
     }
 
     pub fn step(&mut self) {
-        self.cpu.step();
+        let mut buf: [u8; 256] = [0; 256];
+        self.cpu.step(&mut self.mem);
+        self.gpu.draw_screen(&mut self.mem, &mut buf);
     }
 
     pub fn reset(&mut self) {
-        *self.cpu.mem.reg_lcdc() = 0x91;
-        self.cpu.mem.data[0xff47] = 0xfc;
-        self.cpu.mem.data[0xff48] = 0xff;
-        self.cpu.mem.data[0xff49] = 0xff;
+        *self.mem.reg_lcdc() = 0x91;
+        self.mem.data[0xff47] = 0xfc;
+        self.mem.data[0xff48] = 0xff;
+        self.mem.data[0xff49] = 0xff;
     }
 }
