@@ -15,14 +15,14 @@ use crate::memory::Memory;
 #define REG_WX		MEM[0xff4b]
 */
 
-static LCDC_ON: u8 = (1 << 7);
-static LCDC_WINDOW_TILE_MAP_SELECT: u8 = (1 << 6);
-static LCDC_WINDOW_ON: u8 = (1 << 5);
-static LCDC_BG_TILE_DATA: u8 = (1 << 4);
-static LCDC_BG_TILE_MAP_SELECT: u8 = (1 << 3);
-static LCDC_SPRITE_DOUBLE_HEIGHT: u8 = (1 << 2);
-static LCDC_SHOW_SPRITES: u8 = (1 << 1);
-static LCDC_SHOW_BG: u8 = (1 << 0);
+static LCDC_ON: u8 = 1 << 7;
+static LCDC_WINDOW_TILE_MAP_SELECT: u8 = 1 << 6;
+static LCDC_WINDOW_ON: u8 = 1 << 5;
+static LCDC_BG_TILE_DATA: u8 = 1 << 4;
+static LCDC_BG_TILE_MAP_SELECT: u8 = 1 << 3;
+static LCDC_SPRITE_DOUBLE_HEIGHT: u8 = 1 << 2;
+static LCDC_SHOW_SPRITES: u8 = 1 << 1;
+static LCDC_SHOW_BG: u8 = 1 << 0;
 
 /*
 #define SPRITE_PRIORITY (1 << 7)

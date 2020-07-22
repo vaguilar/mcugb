@@ -23,12 +23,6 @@ pub struct CPU {
 
 #[derive(Default)]
 pub struct Registers {
-    r8: Registers8,
-    r16: Registers16,
-}
-
-#[derive(Default)]
-pub struct Registers8 {
     f: u8,
     a: u8,
     b: u8,
@@ -37,14 +31,6 @@ pub struct Registers8 {
     e: u8,
     h: u8,
     l: u8,
-}
-
-#[derive(Default)]
-pub struct Registers16 {
-    af: u16,
-    bc: u16,
-    de: u16,
-    hl: u16,
 }
 
 impl CPU {
@@ -60,6 +46,42 @@ impl CPU {
             timer_cycles: 0,
             divider_cycles: 0,
         }
+    }
+
+    pub fn af(&self) -> u16 {
+        ((self.reg.a as u16) << 8) | (self.reg.f as u16)
+    }
+
+    pub fn set_af(&mut self, val: u16) {
+        self.reg.a = val as u8;
+        self.reg.f = (val >> 8) as u8;
+    }
+
+    pub fn bc(&self) -> u16 {
+        ((self.reg.b as u16) << 8) | (self.reg.c as u16)
+    }
+
+    pub fn set_bc(&mut self, val: u16) {
+        self.reg.b = val as u8;
+        self.reg.c = (val >> 8) as u8;
+    }
+
+    pub fn de(&self) -> u16 {
+        ((self.reg.d as u16) << 8) | (self.reg.e as u16)
+    }
+
+    pub fn set_de(&mut self, val: u16) {
+        self.reg.d = val as u8;
+        self.reg.e = (val >> 8) as u8;
+    }
+
+    pub fn hl(&self) -> u16 {
+        ((self.reg.h as u16) << 8) | (self.reg.l as u16)
+    }
+
+    pub fn set_hl(&mut self, val: u16) {
+        self.reg.h = val as u8;
+        self.reg.l = (val >> 8) as u8;
     }
 
     pub fn push_stack(&mut self, mem: &mut Memory, value: u16) {
@@ -180,18 +202,20 @@ impl CPU {
             0x00 => 0,
             0x01 => {
                 // ld bc, nn
-                self.reg.r16.bc = self.fetch16(mem);
+                let val = self.fetch16(mem);
+                self.set_bc(val);
                 0
             }
-            0x01 => {
+            0x02 => {
                 // ld (bc), a
-                mem.write8(self.reg.r16.bc, self.reg.r8.a);
-                self.reg.r16.bc = self.fetch16(mem);
+                mem.write8(self.bc(), self.reg.a);
+                let val = self.fetch16(mem);
+                self.set_bc(val);
                 0
             }
             0xaf => {
                 // xor a, a
-                self.reg.r8.a = 0;
+                self.reg.a = 0;
                 4
             }
             0xc3 => {
