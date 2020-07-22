@@ -42,10 +42,9 @@ impl GB {
         self.mem.joypad_states[directional] |= 1 << button;
     }
 
-    pub fn step(&mut self) {
-        let mut buf: [u8; 256] = [0; 256];
+    pub fn step(&mut self, buf: &mut [u8]) {
         self.cpu.step(&mut self.mem);
-        self.gpu.draw_screen(&mut self.mem, &mut buf);
+        self.gpu.draw_screen(&mut self.mem, buf);
     }
 
     pub fn reset(&mut self) {

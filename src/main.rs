@@ -210,7 +210,7 @@ fn main() {
     gb.reset();
 
     println!("ROM Title: {:?}", gb.rom_title);
-
+    let mut buf: [u8; 256 * 256 * 3] = [0; 256 * 256 * 3];
     'running: loop {
         for event in event_pump.poll_iter() {
             if handle_event(&event, &mut gb) {
@@ -218,7 +218,7 @@ fn main() {
             }
         }
 
-        gb.step();
+        gb.step(&mut buf);
 
         canvas.clear();
         canvas.present();

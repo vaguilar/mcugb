@@ -64,8 +64,8 @@ impl GPU {
                 self.draw_tile(
                     tile_addr,
                     buffer,
-                    c * 8 - (*mem.reg_scx() as u16),
-                    r * 8 - (*mem.reg_scy() as u16),
+                    (c * 8u16).wrapping_sub(*mem.reg_scx() as u16),
+                    (r * 8u16).wrapping_sub(*mem.reg_scy() as u16),
                 );
                 tile_ptr += 1;
             }
@@ -98,9 +98,9 @@ impl GPU {
 
         if *mem.reg_lcdc() & LCDC_SHOW_SPRITES != 0 {
             for r in 0..40 {
-                let y = (mem.read8(sprite_addr) - 16) as u16;
+                let y = (mem.read8(sprite_addr).wrapping_sub(16)) as u16;
                 sprite_addr += 1;
-                let x = (mem.read8(sprite_addr) - 8) as u16;
+                let x = (mem.read8(sprite_addr).wrapping_sub(8)) as u16;
                 sprite_addr += 1;
                 id = mem.read8(sprite_addr) as u16;
                 sprite_addr += 1;
