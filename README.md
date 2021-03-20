@@ -2,7 +2,9 @@
 A GameBoy emulator written in Rust.
 
 ### Usage:
+```
 cargo run ./rom.gb
+```
 
 ### Keys:
 * _x_ - A button
