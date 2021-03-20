@@ -16,6 +16,15 @@ macro_rules! function {
     }};
 }
 
+#[inline]
+fn set_flag(flags: &mut u8, mask: u8, set: bool) {
+    if set {
+        *flags |= mask;
+    } else {
+        *flags &= !mask;
+    }
+}
+
 static TAC_SELECT: [u16; 4] = [1024, 16, 64, 256];
 
 static BIT11: u16 = 1 << 11;
@@ -1693,43 +1702,31 @@ impl CPU {
 }
 
 fn add(dst: &mut u8, src: u8, flags: &mut u8, indirect: bool) -> u16 {
-    let result = dst.wrapping_add(src);
-    if result == 0 {
-        *flags |= FLAG_Z;
-    } else {
-        *flags &= !FLAG_Z;
-    }
-    *flags &= !FLAG_N;
-    *flags |= FLAG_H; // TODO fix
-    *flags |= FLAG_C; // TODO fix
+    let (result, carry) = dst.overflowing_add(src);
+    set_flag(flags, FLAG_Z, result == 0);
+    set_flag(flags, FLAG_N, false);
+    set_flag(flags, FLAG_H, (*dst & 0xf) + (src & 0xf) > 0xf);
+    set_flag(flags, FLAG_C, carry);
     *dst = result;
     if indirect { 8 } else { 4 }
 }
 
 fn sub(dst: &mut u8, src: u8, flags: &mut u8, indirect: bool) -> u16 {
     let result = dst.wrapping_sub(src);
-    if result == 0 {
-        *flags |= FLAG_Z;
-    } else {
-        *flags &= !FLAG_Z;
-    }
-    *flags |= FLAG_N;
-    *flags |= FLAG_H; // TODO fix
-    *flags |= if *dst < src { FLAG_C } else { 0 };
+    set_flag(flags, FLAG_Z, result == 0);
+    set_flag(flags, FLAG_N, true);
+    set_flag(flags, FLAG_H, (*dst & 0xf) < (src & 0xf));
+    set_flag(flags, FLAG_C, *dst < src);
     *dst = result;
     if indirect { 8 } else { 4 }
 }
 
 fn cp(dst: &mut u8, src: u8, flags: &mut u8, indirect: bool) -> u16 {
     let result = dst.wrapping_sub(src);
-    if result == 0 {
-        *flags |= FLAG_Z;
-    } else {
-        *flags &= !FLAG_Z;
-    }
-    *flags |= FLAG_N;
-    *flags |= FLAG_H; // TODO fix
-    *flags |= if *dst < src { FLAG_C } else { 0 };
+    set_flag(flags, FLAG_Z, result == 0);
+    set_flag(flags, FLAG_N, true);
+    set_flag(flags, FLAG_H, (*dst & 0xf) < (src & 0xf));
+    set_flag(flags, FLAG_C, *dst < src);
     if indirect { 8 } else { 4 }
 }
 
@@ -1752,26 +1749,22 @@ fn and(dst: &mut u8, src: u8, flags: &mut u8, indirect: bool) -> u16 {
 }
 
 fn adc(dst: &mut u8, src: u8, flags: &mut u8, indirect: bool) -> u16 {
-    let mut result = dst.wrapping_add(src);
+    let (mut result, carry) = dst.overflowing_add(src);
     if *flags & FLAG_C != 0 {
         result = result.wrapping_add(1);
     }
 
-    if result == 0 {
-        *flags |= FLAG_Z;
-    } else {
-        *flags &= !FLAG_Z;
-    }
-
-    *flags &= !FLAG_N;
-    *flags |= FLAG_H; // TODO fix
-    *flags |= FLAG_C; // TODO fix
+    set_flag(flags, FLAG_Z, result == 0);
+    set_flag(flags, FLAG_N, false);
+    set_flag(flags, FLAG_H, (*dst & 0xf) + (src & 0xf) > 0xf);
+    set_flag(flags, FLAG_C, carry);
     *dst = result;
+
     if indirect { 8 } else { 4 }
 }
 
 fn sbc(dst: &mut u8, src: u8, flags: &mut u8, indirect: bool) -> u16 {
-    let mut result = dst.wrapping_sub(src);
+    let (mut result, borrow) = dst.overflowing_sub(src);
     if *flags & FLAG_C != 0 {
         result = result.wrapping_sub(1);
     }
@@ -1782,14 +1775,16 @@ fn sbc(dst: &mut u8, src: u8, flags: &mut u8, indirect: bool) -> u16 {
         *flags &= !FLAG_Z;
     }
 
-    *flags |= FLAG_N;
-    *flags |= FLAG_H; // TODO fix
-    *flags |= FLAG_C; // TODO fix
+    set_flag(flags, FLAG_H, (*dst & 0xf) > (src & 0xf));
+    set_flag(flags, FLAG_C, borrow);
+
     *dst = result;
+
     if indirect { 8 } else { 4 }
 }
 
 fn inc8(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
+    let half_carry = (*dst & 0xf) == 0xf;
     *dst = dst.wrapping_add(1);
     if *dst == 0 {
         *flags |= FLAG_Z;
@@ -1797,11 +1792,17 @@ fn inc8(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
         *flags &= !FLAG_Z;
     }
     *flags &= !FLAG_N;
-    *flags |= FLAG_H; // TODO fix
+
+    if half_carry {
+        *flags |= FLAG_H;
+    } else {
+        *flags &= !FLAG_H;
+    }
     if indirect { 12 } else { 4 }
 }
 
 fn dec8(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
+    let half_borrow = (*dst & 0xf) == 0x0;
     *dst = dst.wrapping_sub(1);
     if *dst == 0 {
         *flags |= FLAG_Z;
@@ -1809,7 +1810,12 @@ fn dec8(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
         *flags &= !FLAG_Z;
     }
     *flags |= FLAG_N;
-    *flags |= FLAG_H; // TODO fix
+
+    if !half_borrow {
+        *flags |= FLAG_H;
+    } else {
+        *flags &= !FLAG_H;
+    }
     if indirect { 12 } else { 4 }
 }
 
@@ -1887,7 +1893,6 @@ fn daa(dst: &mut u8, flags: &mut u8) -> u16 {
         *flags &= !FLAG_Z;
     }
     *flags &= !FLAG_N;
-    *flags |= FLAG_C; // TODO
     4
 }
 
