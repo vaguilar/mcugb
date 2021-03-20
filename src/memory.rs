@@ -137,8 +137,9 @@ impl Memory {
     pub fn mem_dma(&mut self, addr: u16) {
         let start = addr as usize;
         let end = start + 160;
-        self.data.copy_within(start..end, 0xfe00)
+        self.data.copy_within(start..end, 0xfe00) // TODO use copy_nonoverlapping?
     }
+
     // Memory Mapped IO
 
     pub fn reg_joypad(&mut self) -> &mut u8 {
