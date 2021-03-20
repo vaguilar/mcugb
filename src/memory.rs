@@ -22,6 +22,11 @@ impl Memory {
             return self.rom[addr as usize];
         }
 
+        if addr < 0x8000 {
+            // TODO switchable ROM bank
+            return self.rom[addr as usize];
+        }
+
         // RAM echo
         if 0xe000 <= addr && addr < 0xfe00 {
             offset = 0x1000;
@@ -37,24 +42,43 @@ impl Memory {
 
     pub fn write8(&mut self, addr: u16, val: u8) {
         // WIP
-        if addr < 0x8000 {
-            if addr < 0x2000 {
-                // ???
-            } else if addr < 0x4000 {
+        match addr {
+            0x0000..=0x1fff => {
+                // TODO: ???
+            },
+            0x2000..=0x3fff => {
                 // ROM bank select (0 points to one as well)
-                // BANK = val ? val : 1;
-                println!("Switching to ROM bank {}\n", val);
-
-                let new_val = if val == 0 { 1 } else { val };
-            // memcpy
-            } else if addr < 0x6000 {
-                // ???
-            } else {
+                let bank = if val == 0 { 1 } else { val };
+                println!("Switching to ROM bank {}\n", bank);
+                // TODO: actually switch banks
+            },
+            0x4000..=0x5fff => {
+                // TODO: ???
+            },
+            0x6000..=0x7fff => {
+                // TODO: actually switch memory mode
                 // memory mode select
                 // MEMORY_MODE = val & 1;
-            }
-        } else {
-            if addr == 0xff00 {
+            },
+            0x8000..=0x9fff => {
+                // video RAM
+                self.data[addr as usize] = val;
+            },
+            0xa000..=0xbfff => {
+                // switchable RAM bank
+            },
+            0xc000..=0xdfff => {
+                // low RAM
+                self.data[addr as usize] = val;
+            },
+            0xfe00..=0xfebf => {
+                // OAM
+                self.data[addr as usize] = val;
+            },
+            0xfea0..=0xfeff => {
+                // empty ???
+            },
+            0xff00 => {
                 // joypad
                 if val & 0x10 != 0 {
                     // non-directional
@@ -63,23 +87,43 @@ impl Memory {
                     // directional
                     *self.reg_joypad() = 0xe0 | self.joypad_states[1];
                 }
-            } else if addr == 0xff04 {
+            },
+            0xff04 => {
+                // interrupt register
+                self.data[addr as usize] = val;
+            },
+            0xff0f => {
                 // divider register
                 *self.reg_div() = 0;
-            } else if addr == 0xff40 {
+            },
+            0xff40 => {
                 // lcdc
                 *self.reg_lcdc() = val;
-            // ???
-            } else if addr == 0xff41 {
+                // ???
+            },
+            0xff41 => {
                 // lcdc stat
                 *self.reg_stat() = val;
-            } else if addr == 0xff46 {
+            },
+            0xff46 => {
                 // dma
                 *self.reg_dma() = val;
                 self.mem_dma((val as u16) << 8);
-            } else {
+            },
+            0xff00..=0xff7f => {
+                // IO ports + empty
                 self.data[addr as usize] = val;
-                //if (DEBUG && addr > 0xff00) printf("Writing to MM register, [%04x] = %02x at PC = %04x\n", addr, byte, REG_PC);
+            },
+            0xff80..=0xfffe => {
+                // internal RAM
+                self.data[addr as usize] = val;
+            },
+            0xffff => {
+                // interrupt enable register
+                self.data[addr as usize] = val;
+            },
+            _ => {
+                panic!("Unhandled memory write to address: 0x{:04X}", addr);
             }
         }
     }
@@ -130,6 +174,10 @@ impl Memory {
 
     pub fn reg_scx(&mut self) -> &mut u8 {
         &mut self.data[0xff43]
+    }
+
+    pub fn reg_ly(&mut self) -> &mut u8 {
+        &mut self.data[0xff44]
     }
 
     pub fn reg_dma(&mut self) -> &mut u8 {

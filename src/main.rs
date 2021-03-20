@@ -7,46 +7,12 @@ mod memory;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+use sdl2::pixels::PixelFormatEnum;
 use std::env;
-use std::thread::sleep;
-use std::time::Duration;
+use std::collections::HashSet;
+use sdl2::rect::Rect;
 
-static SCALE_FACTOR: u8 = 2;
-
-/*
-pthread_t debugger_thread;
-pthread_mutex_t mutex;
-volatile uint8_t RUNNING = 0;
-volatile uint8_t STEP = 0;
-
-uint8_t init_win() {
-    if(SDL_Init(SDL_INIT_VIDEO) < 0) {
-        printf("Unable to Init SDL: %s", SDL_GetError());
-        return 0;
-    }
-
-    if (SDL_CreateWindowAndRenderer(160, 144, SDL_WINDOW_RESIZABLE, &Window, &Renderer)) {
-        printf("Unable to create SDL Renderer: %s\n", SDL_GetError());
-        return 0;
-    }
-
-    /* set scale */
-    SDL_SetWindowSize(Window, 160 * SCALE_FACTOR, 144 * SCALE_FACTOR);
-
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
-    SDL_RenderSetLogicalSize(Renderer, 160, 144);
-
-    SDL_SetWindowTitle(Window, "mcugb");
-    Texture = SDL_CreateTexture(Renderer, SDL_PIXELFORMAT_ARGB4444, SDL_TEXTUREACCESS_STREAMING, 256, 256);
-
-    //PrimarySurface = SDL_GetWindowSurface(Window);
-    SDL_SetRenderDrawColor(Renderer, 0x30, 0x30, 0x30, 0xFF);
-    SDL_RenderClear(Renderer);
-    SDL_RenderPresent(Renderer);
-
-    return 1;
-}
-*/
+static SCALE_FACTOR: u32 = 2;
 
 fn handle_event(event: &Event, gb: &mut gb::GB) -> bool {
     match event {
@@ -179,6 +145,9 @@ fn main() {
     let mut cycles: u32 = 0;
     let mut buffer: [u16; 256 * 256];
     let mut redraw = false;
+    let mut break_points: HashSet<u16> = vec![
+        // for testing
+     ].into_iter().collect();
 
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -188,13 +157,15 @@ fn main() {
 
     let rom_path = &args[1];
 
-    //mem_rom_headers();
-    //system_load_rom_bank(1);
+    // parse command line breakpoints
+    break_points.extend(
+        env::args().skip(2).map(|arg| u16::from_str_radix(&arg, 16).unwrap())
+    );
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
-        .window("mcugb", 320, 288)
+        .window("mcugb", 160 * SCALE_FACTOR, 144 * SCALE_FACTOR)
         .position_centered()
         .opengl()
         .build()
@@ -204,13 +175,18 @@ fn main() {
         .index(find_sdl_gl_driver().unwrap())
         .build()
         .unwrap();
+    let texture_creator = canvas.texture_creator();
+    let mut texture = texture_creator.create_texture_target(
+        PixelFormatEnum::RGBA8888,
+        256, 256
+    ).unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     let mut gb = gb::GB::with_rom(&rom_path);
     gb.reset();
 
     println!("ROM Title: {:?}", gb.rom_title);
-    let mut buf: [u8; 256 * 256 * 3] = [0; 256 * 256 * 3];
+    let mut buf: [u8; 256 * 256 * 4] = [0; 256 * 256 * 4];
     'running: loop {
         for event in event_pump.poll_iter() {
             if handle_event(&event, &mut gb) {
@@ -218,83 +194,60 @@ fn main() {
             }
         }
 
-        gb.step(&mut buf);
-
-        canvas.clear();
-        canvas.present();
-        sleep(Duration::new(0, 1_000_000_000u32 / 60));
-    }
-
-    /*
-    if(pthread_create(&debugger_thread, 0, debugger_main, (void *) &RUNNING)) {
-        printf("Unable to start debugger thread");
-        return 1;
-    }
-    RUNNING = 1;
-
-    while (1) {
-        if (RUNNING) {
-            if (STEP) {
-                printf("Stepped one instruction, now at $%04hx.\n", REG_PC);
-                cpu_debug();
-                cpu_debug_stack();
-                STEP = 0;
-                debugger_set_state(0);
-            } else if (debugger_in_breakpoints(REG_PC)) {
-                printf("Triggered breakpoint at $%04hx.\n", REG_PC);
-                cpu_debug();
-                cpu_debug_stack();
-                debugger_set_state(0);
-            } else {
-                cycles = cpu_step();
-                redraw = gpu_step(cycles, buffer);
-                //cpu_debug();
-            }
+        if break_points.contains(&gb.cpu.pc) {
+            eprintln!("!!! Hit break point at {:04X}", gb.cpu.pc);
+            break 'running;
         }
 
-        /* draw buffer */
-        if (redraw == 1 || RUNNING == 0) {
-            if (SDL_PollEvent(&Event)) {
-                if (handle_event(&Event)) break;
-            }
+        let (_cycles, redraw) = gb.step(&mut buf);
 
-            gpu_draw_screen(buffer);
-            SDL_UpdateTexture(Texture, NULL, buffer, 256 * sizeof(uint16_t));
-            SDL_RenderClear(Renderer);
-
-            SrcRect.x = 0;
-            SrcRect.y = 0;
-            SrcRect.w = 256;
-            SrcRect.h = 256;
-            DestRect.x = 0;
-            DestRect.y = 0;
-            DestRect.w = 256;
-            DestRect.h = 256;
-            SDL_RenderCopy(Renderer, Texture, &SrcRect, &DestRect);
-
-            SDL_RenderPresent(Renderer);
-            SDL_Delay(12);
+        if redraw {
+            canvas.clear();
+            texture.update(Rect::new(0, 0, 256, 256), &buf, 256 * 4).unwrap();
+            let wx = *gb.mem.reg_wx() as i32;
+            let wy = *gb.mem.reg_wy() as i32;
+            canvas.copy(&texture, Rect::new(wx, wy, 160, 144), None).unwrap();
+            canvas.present();
         }
     }
 
-    cpu_debug();
-    mem_debug(0x9000, 128);
-    mem_debug(0x9800, 128);
-    printf("\n");
-    mem_debug(0xff40, 16);
-    printf("\n");
-    mem_debug(0xfe00, 128);
-    mem_debug(0xc0a4, 16);
-    mem_debug(0x98a0, 16);
-    printf("LCDC: $%04x\n", REG_LCDC);
-    printf("STAT: $%04x\n", REG_STAT);
-    printf("REG IE: $%04x\n", REG_INTERRUPT_ENABLE);
-    printf("REG IF: $%04x\n", REG_INTERRUPT_FLAG);
-    cpu_debug_stack();
+    dump_debug(&gb);
+    dump_mem(&gb, 0xffb0);
+}
 
-    SDL_DestroyTexture(Texture);
-    SDL_DestroyRenderer(Renderer);
-    SDL_DestroyWindow(Window);
-    SDL_Quit();
-    */
+fn dump_debug(gb: &gb::GB) {
+    println!("");
+
+    // registers
+    println!("CPU Registers:");
+    println!("A: {:02X}    F: {:02X}", gb.cpu.reg.a, gb.cpu.reg.f);
+    println!("B: {:02X}    C: {:02X}", gb.cpu.reg.b, gb.cpu.reg.c);
+    println!("D: {:02X}    E: {:02X}", gb.cpu.reg.d, gb.cpu.reg.e);
+    println!("H: {:02X}    L: {:02X}", gb.cpu.reg.h, gb.cpu.reg.l);
+    println!("PC: {:04X}", gb.cpu.pc);
+    println!("SP: {:04X}", gb.cpu.sp);
+
+    println!("");
+
+    // stack
+    println!("Stack");
+    for i in 0..16 {
+        let address = ((i * 2) + gb.cpu.sp - 16) as usize;
+        println!("{:04X} | {:02X}{:02X}", address, gb.mem.data[address+1], gb.mem.data[address]);
+    }
+}
+
+fn dump_mem(gb: &gb::GB, address: u16) {
+    println!("");
+
+    println!("Mem at 0x{:04X}", address);
+    for r in 0..8 {
+        let row_address = (r * 8 + address) as usize;
+        print!("0x{:04X} | ", row_address);
+        for c in 0..8 {
+            let byte_address = (row_address + c)  as usize;
+            print!("{:02X} ", gb.mem.data[byte_address]);
+        }
+        println!("");
+    }
 }
