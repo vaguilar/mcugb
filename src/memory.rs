@@ -15,25 +15,26 @@ impl Memory {
         }
     }
 
-    pub fn read8(&self, addr: u16) -> u8 {
-        let mut offset: u16 = 0;
-
-        if addr < 0x4000 {
-            return self.rom[addr as usize];
+    pub fn read8(&self, address: u16) -> u8 {
+        match address {
+            0x0000..=0x3fff => self.rom[address as usize],
+            0x4000..=0x7fff => {
+                // TODO switchable ROM bank
+                self.rom[address as usize]
+            },
+            0xe000..=0xfdff => {
+                self.data[(address - 0x1000) as usize]
+            },
+            0xff41 => {
+                // TODO
+                let ly = self.data[0xff44];
+                let lyc = self.data[0xff45];
+                0x80 | if ly == lyc { 2 } else { 0 }
+            }
+            _ => self.data[address as usize]
         }
-
-        if addr < 0x8000 {
-            // TODO switchable ROM bank
-            return self.rom[addr as usize];
-        }
-
-        // RAM echo
-        if 0xe000 <= addr && addr < 0xfe00 {
-            offset = 0x1000;
-        }
-
-        self.data[(addr - offset) as usize]
     }
+
     pub fn read16(&self, addr: u16) -> u16 {
         let top: u16 = self.read8(addr) as u16;
         let bottom: u16 = (self.read8(addr + 1) as u16) << 8;
@@ -180,9 +181,9 @@ impl Memory {
         &mut self.data[0xff44]
     }
 
-    pub fn reg_lyc(&mut self) -> &mut u8 {
-        &mut self.data[0xff45]
-    }
+    // pub fn reg_lyc(&mut self) -> &mut u8 {
+    //     &mut self.data[0xff45]
+    // }
 
     pub fn reg_dma(&mut self) -> &mut u8 {
         &mut self.data[0xff47]

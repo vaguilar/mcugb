@@ -146,7 +146,7 @@ impl CPU {
         mem.data[0xff0f] &= !(interrupt as u8);
     }
 
-    pub fn interrupt_reg(&self, mem: &mut Memory) -> u8 {
+    pub fn interrupt_reg(&self, mem: &Memory) -> u8 {
         mem.data[0xffff]
     }
 
@@ -199,28 +199,28 @@ impl CPU {
 
         if self.interrupts {
             let interrupt_flag = &mem.data[0xff0f];
-            let interrupt_enable = &mem.data[0xffff];
-            if *interrupt_enable & Interrupt::VBlank as u8 & *interrupt_flag != 0 {
+            let interrupt_enable = self.interrupt_reg(&mem);
+            if interrupt_enable & Interrupt::VBlank as u8 & *interrupt_flag != 0 {
                 self.interrupts = false;
                 self.push_stack(mem, self.pc);
                 self.pc = 0x0040;
                 self.unset_interrupt(mem, Interrupt::VBlank);
-            } else if *interrupt_enable & Interrupt::LCDC as u8 & *interrupt_flag != 0 {
+            } else if interrupt_enable & Interrupt::LCDC as u8 & *interrupt_flag != 0 {
                 self.interrupts = false;
                 self.push_stack(mem, self.pc);
                 self.pc = 0x0048;
                 self.unset_interrupt(mem, Interrupt::LCDC);
-            } else if *interrupt_enable & Interrupt::Timer as u8 & *interrupt_flag != 0 {
+            } else if interrupt_enable & Interrupt::Timer as u8 & *interrupt_flag != 0 {
                 self.interrupts = false;
                 self.push_stack(mem, self.pc);
                 self.pc = 0x0050;
                 self.unset_interrupt(mem, Interrupt::Timer);
-            } else if *interrupt_enable & Interrupt::Serial as u8 & *interrupt_flag != 0 {
+            } else if interrupt_enable & Interrupt::Serial as u8 & *interrupt_flag != 0 {
                 self.interrupts = false;
                 self.push_stack(mem, self.pc);
                 self.pc = 0x0058;
                 self.unset_interrupt(mem, Interrupt::Serial);
-            } else if *interrupt_enable & Interrupt::JoyPad as u8 & *interrupt_flag != 0 {
+            } else if interrupt_enable & Interrupt::JoyPad as u8 & *interrupt_flag != 0 {
                 self.interrupts = false;
                 self.push_stack(mem, self.pc);
                 self.pc = 0x0060;
@@ -261,17 +261,17 @@ impl CPU {
 
     fn execute(&mut self, mem: &mut Memory, op: u8) -> u16 {
         let mut byte: u8;
-        let mut immediate: u16;
-        let mut result4: u8;
-        let mut result: u8;
-        let mut addr: u16;
+        let immediate: u16;
+        let result4: u8;
+        let result: u8;
+        let addr: u16;
 
         match op {
             0x00 => 0,
             0x01 => {
                 // ld bc, nn
-                let val = self.fetch16(mem);
-                self.set_bc(val);
+                immediate = self.fetch16(mem);
+                self.set_bc(immediate);
                 12
             }
             0x02 => {
@@ -312,12 +312,12 @@ impl CPU {
             }
             0x09 => {
                 // add hl, bc
-                let result = self.hl() + self.bc();
+                let (result, overflow) = self.hl().overflowing_add(self.bc());
                 let result12 = (self.hl() & 0xfff) + (self.bc() & 0xfff);
                 // z flag not affected
                 self.set_flag(FLAG_N, false);
                 self.set_flag(FLAG_H, result12 > 0xfff);
-                self.set_flag(FLAG_C, result > 0xffff);
+                self.set_flag(FLAG_C, overflow);
                 self.set_hl(result);
                 8
             }
@@ -349,7 +349,7 @@ impl CPU {
             }
             0x0f => {
                 // rrca
-                rrc(&self.reg.a);
+                rrc(&mut self.reg.a, &mut self.reg.f, false);
                 4
             }
             0x10 => {
@@ -576,22 +576,21 @@ impl CPU {
             }
             0x34 => {
                 // inc (hl)
-                result = mem.read8(self.hl()).wrapping_add(1);
+                let (result, overflow) = mem.read8(self.hl()).overflowing_add(1);
                 mem.write8(self.hl(), result & 0xff);
                 self.set_flag(FLAG_Z, result == 0);
                 self.set_flag(FLAG_N, false);
-                self.set_flag(FLAG_H, result > 0xff);
+                self.set_flag(FLAG_H, overflow);
                 12
             }
             0x35 => {
                 // dec (hl)
                 byte = mem.read8(self.hl());
                 result = byte.wrapping_sub(1);
-                result4 = (byte & 0xf).wrapping_sub(1);
-                mem.write8(self.hl(), result & 0xff);
+                mem.write8(self.hl(), result);
                 self.set_flag(FLAG_Z, result == 0);
                 self.set_flag(FLAG_N, true);
-                self.set_flag(FLAG_H, result4 < 0);
+                self.set_flag(FLAG_H, byte & 0xf != 0);
                 12
             }
             0x36 => {
@@ -645,13 +644,7 @@ impl CPU {
             }
             0x3d => {
                 // dec a
-                result = self.reg.a.wrapping_sub(1);
-                result4 = (self.reg.a & 0xf).wrapping_sub(1);
-                self.set_flag(FLAG_Z, result == 0);
-                self.set_flag(FLAG_N, true);
-                self.set_flag(FLAG_H, result < 0);
-                self.reg.a = result & 0xff;
-                4
+                dec8(&mut self.reg.a, &mut self.reg.f, false)
             }
             0x3e => {
                 // ld a, n
@@ -937,11 +930,8 @@ impl CPU {
             }
             0x76 => {
                 // halt
-                //self.pc -= 1;
-                //printf("halting!\n");
-                //exit(1);
                 panic!("HALT");
-                4
+                // 4
             }
             0x77 => {
                 // ld (hl), a
@@ -1015,12 +1005,12 @@ impl CPU {
             0x86 => {
                 // add a, (hl)
                 byte = mem.read8(self.hl());
-                result = self.reg.a + byte;
-                result4 = (self.reg.a & 0xf) * (byte & 0xf);
+                let (result, overflow) = self.reg.a.overflowing_add(byte);
+                result4 = (self.reg.a & 0xf) + (byte & 0xf);
                 self.set_flag(FLAG_Z, result == 0);
                 self.set_flag(FLAG_N, false);
                 self.set_flag(FLAG_H, result4 > 0xf);
-                self.set_flag(FLAG_C, result > 0xff);
+                self.set_flag(FLAG_C, overflow);
                 self.reg.a = result;
                 8
             }
@@ -1055,12 +1045,12 @@ impl CPU {
                 if self.c() {
                     byte += 1;
                 }
-                result = self.reg.a + byte;
+                let (result, overflow) = self.reg.a.overflowing_add(byte);
                 result4 = (self.reg.a & 0xf) + (byte & 0xf);
                 self.set_flag(FLAG_Z, result == 0);
                 self.set_flag(FLAG_N, false);
                 self.set_flag(FLAG_H, result4 > 0xf);
-                self.set_flag(FLAG_C, result > 0xff);
+                self.set_flag(FLAG_C, overflow);
                 self.reg.a = result;
                 8
             }
@@ -1695,8 +1685,8 @@ impl CPU {
                 }
             }
             1 => bit(*reg, y, &mut self.reg.f, indirect),
-            2 => res(reg, y, &mut self.reg.f, indirect),
-            3 => set(reg, y, &mut self.reg.f, indirect),
+            2 => res(reg, y, indirect),
+            3 => set(reg, y, indirect),
             _ => panic!("Unhandled instruction: 0xCB 0x{:02X}", op),
         }
     }
@@ -1856,7 +1846,7 @@ fn rr(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
     if indirect { 16 } else { 8 }
 }
 
-fn rrc(val: &u8) -> u8 {
+fn rrc(_dst: &mut u8, _flags: &mut u8, _indirect: bool) -> u16 {
     panic!("Unhandled function: {}", function!());
 }
 
@@ -1923,12 +1913,12 @@ fn bit(val: u8, b: u8, flags: &mut u8, indirect: bool) -> u16 {
     if indirect { 16 } else { 8 }
 }
 
-fn set(dst: &mut u8, b: u8, flags: &mut u8, indirect: bool) -> u16 {
+fn set(dst: &mut u8, b: u8, indirect: bool) -> u16 {
 	*dst = (1 << b) | *dst;
     if indirect { 16 } else { 8 }
 }
 
-fn res(dst: &mut u8, b: u8, flags: &mut u8, indirect: bool) -> u16 {
+fn res(dst: &mut u8, b: u8, indirect: bool) -> u16 {
 	*dst = (!(1 << b)) & *dst;
     if indirect { 16 } else { 8 }
 }

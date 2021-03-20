@@ -140,8 +140,8 @@ impl GPU {
     }
 
     pub fn draw_screen(&self, mem: &mut Memory, buffer: &mut [u8]) {
-        let mut tile_id: u8 = 0;
-        let mut tile_addr: u16 = 0;
+        let mut tile_id: u8;
+        let mut tile_addr: u16;
         let mut tile_ptr: u16 = 0x9800;
 
         if *mem.reg_lcdc() & LCDC_BG_TILE_MAP_SELECT != 0 {
