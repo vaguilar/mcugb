@@ -1,19 +1,10 @@
 use crate::memory::Memory;
 
-macro_rules! function {
-    () => {{
-        fn f() {}
-        fn type_name_of<T>(_: T) -> &'static str {
-            std::any::type_name::<T>()
-        }
-        let name = type_name_of(f);
-
-        // Find and cut the rest of the path
-        match &name[..name.len() - 3].rfind(':') {
-            Some(pos) => &name[pos + 1..name.len() - 3],
-            None => &name[..name.len() - 3],
-        }
-    }};
+#[inline]
+fn set_flag_if(flags: &mut u8, mask: u8, condition: bool) {
+    if condition {
+        *flags |= mask;
+    } 
 }
 
 #[inline]
@@ -26,9 +17,6 @@ fn set_flag(flags: &mut u8, mask: u8, set: bool) {
 }
 
 static TAC_SELECT: [u16; 4] = [1024, 16, 64, 256];
-
-static BIT11: u16 = 1 << 11;
-static BIT15: u16 = 1 << 15;
 
 static FLAG_Z: u8 = 0x80;
 static FLAG_N: u8 = 0x40;
@@ -269,7 +257,7 @@ impl CPU {
     }
 
     fn execute(&mut self, mem: &mut Memory, op: u8) -> u16 {
-        let mut byte: u8;
+        let byte: u8;
         let immediate: u16;
         let result4: u8;
         let result: u8;
@@ -413,11 +401,11 @@ impl CPU {
             }
             0x19 => {
                 // add hl, de
-                let result = self.hl().wrapping_add(self.de());
+                let (result, carry) = self.hl().overflowing_add(self.de());
                 let result12 = (self.hl() & 0xfff) + (self.de() & 0xfff);
                 self.set_flag(FLAG_N, false);
-                self.set_flag(FLAG_H, result12 & BIT11 != 0);
-                self.set_flag(FLAG_C, result & BIT15 != 0);
+                self.set_flag(FLAG_H, result12 > 0xfff);
+                self.set_flag(FLAG_C, carry);
                 self.set_hl(result);
                 8
             }
@@ -428,9 +416,9 @@ impl CPU {
             }
             0x1b => {
                 // dec de
-                self.reg.e -= 1;
+                self.reg.e = self.reg.e.wrapping_sub(1);
                 if self.reg.e == 0xff {
-                    self.reg.d -= 1;
+                    self.reg.d = self.reg.d.wrapping_sub(1);
                 }
                 8
             }
@@ -510,11 +498,11 @@ impl CPU {
             }
             0x29 => {
                 // add hl, hl
-                let result = self.hl() + self.hl();
+                let (result, carry) = self.hl().overflowing_add(self.hl());
                 let result12 = (self.hl() & 0xfff) + (self.hl() & 0xfff);
                 self.set_flag(FLAG_N, false);
-                self.set_flag(FLAG_H, result12 & BIT11 != 0);
-                self.set_flag(FLAG_C, result & BIT15 != 0);
+                self.set_flag(FLAG_H, result12 > 0xfff);
+                self.set_flag(FLAG_C, carry);
                 self.set_hl(result);
                 8
             }
@@ -529,9 +517,9 @@ impl CPU {
             }
             0x2b => {
                 // dec hl
-                self.reg.l -= 1;
+                self.reg.l = self.reg.l.wrapping_sub(1);
                 if self.reg.l == 0xff {
-                    self.reg.h -= 1;
+                    self.reg.h = self.reg.h.wrapping_sub(1);
                 }
                 8
             }
@@ -580,7 +568,7 @@ impl CPU {
             }
             0x33 => {
                 // inc sp
-                self.sp += 1;
+                self.sp = self.sp.wrapping_add(1);
                 8
             }
             0x34 => {
@@ -625,11 +613,11 @@ impl CPU {
             }
             0x39 => {
                 // add hl, sp
-                let result = self.hl() + self.sp;
-                let result4 = (self.hl() & 0xfff) + (self.sp & 0xfff);
+                let (result, carry) = self.hl().overflowing_add(self.sp);
+                let result12 = (self.hl() & 0xfff) + (self.sp & 0xfff);
                 self.set_flag(FLAG_N, false);
-                self.set_flag(FLAG_H, result4 & BIT11 == 0);
-                self.set_flag(FLAG_C, result & BIT15 == 0);
+                self.set_flag(FLAG_H, result12 > 0xfff);
+                self.set_flag(FLAG_C, carry);
                 self.set_hl(result);
                 8
             }
@@ -644,7 +632,7 @@ impl CPU {
             }
             0x3b => {
                 // dec sp
-                self.sp -= 1;
+                self.sp = self.sp.wrapping_sub(1);
                 8
             }
             0x3c => {
@@ -939,8 +927,8 @@ impl CPU {
             }
             0x76 => {
                 // halt
-                panic!("HALT");
-                // 4
+                // panic!("HALT");
+                4
             }
             0x77 => {
                 // ld (hl), a
@@ -1051,17 +1039,7 @@ impl CPU {
             0x8e => {
                 // adc a, (hl)
                 byte = mem.read8(self.hl());
-                if self.c() {
-                    byte += 1;
-                }
-                let (result, overflow) = self.reg.a.overflowing_add(byte);
-                result4 = (self.reg.a & 0xf) + (byte & 0xf);
-                self.set_flag(FLAG_Z, result == 0);
-                self.set_flag(FLAG_N, false);
-                self.set_flag(FLAG_H, result4 > 0xf);
-                self.set_flag(FLAG_C, overflow);
-                self.reg.a = result;
-                8
+                adc(&mut self.reg.a, byte, &mut self.reg.f, false)
             }
             0x8f => {
                 let a = self.reg.a;
@@ -1513,21 +1491,15 @@ impl CPU {
                 32
             }
             0xe8 => {
-                panic!("unimplemented");
-                // add sp, #
-                // let immediate = self.fetch8(mem) as i8 as i16; // signed
-                // let result = self.sp + immediate;
-                // let result4 = (self.sp & 0x0f) + (immediate & 0x0f);
-                // self.set_flag(FLAG_Z, false);
-                // self.set_flag(FLAG_N, false);
-                // if immediate < 0 {
-                // 	self.set_flag(FLAG_H, result4 > (immediate & 0xf));
-                // 	self.set_flag(FLAG_C, result > immediate);
-                // } else {
-                // 	self.set_flag(FLAG_H, result4 > 0xf);
-                // 	self.set_flag(FLAG_C, result > 0xff);
-                // }
-                // self.sp += immediate;
+                immediate = ((mem.read8(self.pc) as i8) as i16) as u16;
+                let (result, carry) = self.sp.overflowing_add(immediate);
+                let result12 = (self.sp & 0xfff) + (immediate & 0xfff);
+                self.set_flag(FLAG_Z, false);
+                self.set_flag(FLAG_N, false);
+                self.set_flag(FLAG_H, result12 > 0xfff);
+                self.set_flag(FLAG_C, carry);
+                self.sp = result;
+                16
             }
             0xe9 => {
                 // jp hl
@@ -1576,7 +1548,10 @@ impl CPU {
                 12
             }
             0xf2 => {
-                panic!("Invalid instruction: 0x{:02X}", op);
+                // ld a, ($ff00+c)
+                addr = (self.reg.c as u16).wrapping_add(0xff00);
+                self.reg.a = mem.read8(addr);
+                8
             }
             0xf3 => {
                 // disable int
@@ -1685,9 +1660,12 @@ impl CPU {
         match x {
             0 => {
                 match y {
+                    0 => rlc(reg, &mut self.reg.f, indirect),
+                    1 => rrc(reg, &mut self.reg.f, indirect),
                     2 => rl(reg, &mut self.reg.f, indirect),
                     3 => rr(reg, &mut self.reg.f, indirect),
                     4 => sla(reg, &mut self.reg.f, indirect),
+                    5 => sra(reg, &mut self.reg.f, indirect),
                     6 => swap(reg, &mut self.reg.f, indirect),
                     7 => srl(reg, &mut self.reg.f, indirect),
                     _ => panic!("Unhandled instruction: 0xCB 0x{:02X}", op),
@@ -1749,34 +1727,27 @@ fn and(dst: &mut u8, src: u8, flags: &mut u8, indirect: bool) -> u16 {
 }
 
 fn adc(dst: &mut u8, src: u8, flags: &mut u8, indirect: bool) -> u16 {
-    let (mut result, carry) = dst.overflowing_add(src);
-    if *flags & FLAG_C != 0 {
-        result = result.wrapping_add(1);
-    }
+    let carry = if *flags & FLAG_C == 0 { 0 } else { 1 };
+    let (result, overflow) = dst.overflowing_add(src.wrapping_add(carry));
 
-    set_flag(flags, FLAG_Z, result == 0);
+    if result == 0 { set_flag(flags, FLAG_Z, true); }
     set_flag(flags, FLAG_N, false);
-    set_flag(flags, FLAG_H, (*dst & 0xf) + (src & 0xf) > 0xf);
-    set_flag(flags, FLAG_C, carry);
+    if (*dst & 0xf) + (src.wrapping_add(carry) & 0xf) > 0xf { set_flag(flags, FLAG_H, true); }
+    if overflow { set_flag(flags, FLAG_C, true); }
+
     *dst = result;
 
     if indirect { 8 } else { 4 }
 }
 
 fn sbc(dst: &mut u8, src: u8, flags: &mut u8, indirect: bool) -> u16 {
-    let (mut result, borrow) = dst.overflowing_sub(src);
-    if *flags & FLAG_C != 0 {
-        result = result.wrapping_sub(1);
-    }
+    let carry = if *flags & FLAG_C == 0 { 0 } else { 1 };
+    let (result, borrow) = dst.overflowing_sub(src.wrapping_add(carry));
 
-    if result == 0 {
-        *flags |= FLAG_Z;
-    } else {
-        *flags &= !FLAG_Z;
-    }
-
-    set_flag(flags, FLAG_H, (*dst & 0xf) > (src & 0xf));
-    set_flag(flags, FLAG_C, borrow);
+    if result == 0 { set_flag(flags, FLAG_Z, true); }
+    set_flag(flags, FLAG_N, true);
+    if (*dst & 0xf) < (src.wrapping_add(carry) & 0xf) { set_flag(flags, FLAG_H, true); }
+    if !borrow { set_flag(flags, FLAG_C, true); }
 
     *dst = result;
 
@@ -1820,20 +1791,12 @@ fn dec8(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
 }
 
 fn rlc(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
-    let old_bit_7 = *dst & (1 << 7);
+    let old_bit7 = *dst & (1 << 7);
     *dst = *dst << 1;
-    if *dst == 0 {
-        *flags |= FLAG_Z;
-    } else {
-        *flags &= !FLAG_Z;
-    }
-    *flags &= !FLAG_N;
-    *flags &= !FLAG_H;
-    if old_bit_7 == 0 {
-        *flags |= FLAG_C;
-    } else {
-        *flags &= !FLAG_C;
-    }
+    set_flag(flags, FLAG_Z, *dst == 0);
+    set_flag(flags, FLAG_N, false);
+    set_flag(flags, FLAG_H, false);
+    set_flag(flags, FLAG_C, old_bit7 != 0);
     if indirect { 16 } else { 8 }
 }
 
@@ -1844,16 +1807,22 @@ fn rr(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
         *dst |= 1 << 7;
     }
 
-    *flags = if *dst == 0 { FLAG_Z } else { 0 };
-    *flags &= !FLAG_N;
-    *flags &= !FLAG_H;
-    *flags = if bit0 == 0 { 0 } else { FLAG_C };
+    set_flag(flags, FLAG_Z, *dst == 0);
+    set_flag(flags, FLAG_N, false);
+    set_flag(flags, FLAG_H, false);
+    set_flag(flags, FLAG_C, bit0 != 0);
 
     if indirect { 16 } else { 8 }
 }
 
-fn rrc(_dst: &mut u8, _flags: &mut u8, _indirect: bool) -> u16 {
-    panic!("Unhandled function: {}", function!());
+fn rrc(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
+    let old_bit0 = *dst & (1 << 7);
+    *dst = *dst >> 1;
+    set_flag(flags, FLAG_Z, *dst == 0);
+    set_flag(flags, FLAG_N, false);
+    set_flag(flags, FLAG_H, false);
+    set_flag(flags, FLAG_C, old_bit0 != 0);
+    if indirect { 16 } else { 8 }
 }
 
 fn rl(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
@@ -1863,10 +1832,10 @@ fn rl(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
         *dst |= 1;
     }
 
-    *flags = if *dst == 0 { FLAG_Z } else { 0 };
-    *flags &= !FLAG_N;
-    *flags &= !FLAG_H;
-    *flags = if bit7 == 0 { 0 } else { FLAG_C };
+    set_flag(flags, FLAG_Z, *dst == 0);
+    set_flag(flags, FLAG_N, false);
+    set_flag(flags, FLAG_H, false);
+    set_flag(flags, FLAG_C, bit7 != 0);
 
     if indirect { 16 } else { 8 }
 }
@@ -1875,24 +1844,29 @@ fn srl(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
     let bit0 = *dst & 1;
     *dst = *dst >> 1;
 
-    *flags = if *dst == 0 { FLAG_Z } else { 0 };
-    *flags &= !FLAG_N;
-    *flags &= !FLAG_H;
-    *flags = if bit0 == 0 { 0 } else { FLAG_C };
+    set_flag(flags, FLAG_Z, *dst == 0);
+    set_flag(flags, FLAG_N, false);
+    set_flag(flags, FLAG_H, false);
+    set_flag(flags, FLAG_C, bit0 != 0);
 
     if indirect { 16 } else { 8 }
 }
 
 
 fn daa(dst: &mut u8, flags: &mut u8) -> u16 {
-    *dst = *dst - 6 * (*dst >> 4);
+    let (high, low) = (*dst >> 4 & 0xf, *dst & 0xf);
+    let correction: u8 = match (high, low) {
+        (0xa..=0xf, 0xa..=0xf) => 0x66,
+        (_, 0xa..=0xf) => 0x06,
+        (0xa..=0xf, _) => 0x66,
+        _ => 0,
+    };
+    let (result, carry) = dst.overflowing_add(correction);
+    *dst = result;
 
-    if *dst == 0 {
-        *flags |= FLAG_Z;
-    } else {
-        *flags &= !FLAG_Z;
-    }
-    *flags &= !FLAG_N;
+    set_flag_if(flags, FLAG_Z, *dst == 0);
+    set_flag(flags, FLAG_N, false);
+    set_flag_if(flags, FLAG_Z, carry);
     4
 }
 
@@ -1908,13 +1882,9 @@ fn ld_rm(dst: &mut u8, src_address: u16, mem: &Memory) -> u16 {
 
 fn bit(val: u8, b: u8, flags: &mut u8, indirect: bool) -> u16 {
     let result = (val >> b) & 1;
-    if result == 0 {
-        *flags |= FLAG_Z;
-    } else {
-        *flags &= !FLAG_Z;
-    }
-    *flags &= !FLAG_N;
-    *flags |= FLAG_H;
+    set_flag(flags, FLAG_Z, result == 0);
+    set_flag(flags, FLAG_N, false);
+    set_flag(flags, FLAG_H, true);
     if indirect { 16 } else { 8 }
 }
 
@@ -1935,13 +1905,21 @@ fn swap(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
 }
 
 fn sla(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
+    let old_bit7 = *dst & (1 << 7);
     *dst = *dst << 1;
-    if *dst == 0 {
-        *flags |= FLAG_Z;
-    } else {
-        *flags &= !FLAG_Z;
-    }
-    *flags &= !FLAG_N;
-    *flags &= !FLAG_H;
+    set_flag(flags, FLAG_Z, *dst == 0);
+    set_flag(flags, FLAG_N, false);
+    set_flag(flags, FLAG_H, false);
+    set_flag(flags, FLAG_C, old_bit7 != 0);
+    if indirect { 16 } else { 8 }
+}
+
+fn sra(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
+    let old_bit0 = *dst & 1;
+    *dst = ((*dst as i8) >> 1) as u8; // arithmetic shift right
+    set_flag(flags, FLAG_Z, *dst == 0);
+    set_flag(flags, FLAG_N, false);
+    set_flag(flags, FLAG_H, false);
+    set_flag(flags, FLAG_C, old_bit0 != 0);
     if indirect { 16 } else { 8 }
 }
