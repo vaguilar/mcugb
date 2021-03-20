@@ -142,9 +142,6 @@ fn find_sdl_gl_driver() -> Option<u32> {
 }
 
 fn main() {
-    let mut cycles: u32 = 0;
-    let mut buffer: [u16; 256 * 256];
-    let mut redraw = false;
     let mut break_points: HashSet<u16> = vec![
         // for testing
      ].into_iter().collect();
@@ -177,7 +174,7 @@ fn main() {
         .unwrap();
     let texture_creator = canvas.texture_creator();
     let mut texture = texture_creator.create_texture_target(
-        PixelFormatEnum::RGBA8888,
+        PixelFormatEnum::RGB565,
         256, 256
     ).unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
@@ -186,7 +183,7 @@ fn main() {
     gb.reset();
 
     println!("ROM Title: {:?}", gb.rom_title);
-    let mut buf: [u8; 256 * 256 * 4] = [0; 256 * 256 * 4];
+    let mut buf: [u8; 256 * 256 * 2] = [0; 256 * 256 * 2];
     'running: loop {
         for event in event_pump.poll_iter() {
             if handle_event(&event, &mut gb) {
@@ -203,7 +200,7 @@ fn main() {
 
         if redraw {
             canvas.clear();
-            texture.update(Rect::new(0, 0, 256, 256), &buf, 256 * 4).unwrap();
+            texture.update(Rect::new(0, 0, 256, 256), &buf, 256 * 2).unwrap();
             let wx = *gb.mem.reg_wx() as i32;
             let wy = *gb.mem.reg_wy() as i32;
             canvas.copy(&texture, Rect::new(wx, wy, 160, 144), None).unwrap();

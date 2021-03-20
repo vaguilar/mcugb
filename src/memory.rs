@@ -180,6 +180,10 @@ impl Memory {
         &mut self.data[0xff44]
     }
 
+    pub fn reg_lyc(&mut self) -> &mut u8 {
+        &mut self.data[0xff45]
+    }
+
     pub fn reg_dma(&mut self) -> &mut u8 {
         &mut self.data[0xff47]
     }

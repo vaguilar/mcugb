@@ -1,36 +1,21 @@
 use crate::memory::Memory;
 use std::convert::TryInto;
 
-/*
-#define SBUFFER_WIDTH 256;
-#define SBUFFER_HEIGHT 256;
-
-#define REG_LCDC	MEM[0xff40]
-#define REG_STAT 	MEM[0xff41]
-#define REG_SCY		MEM[0xff42]
-#define REG_SCX		MEM[0xff43]
-#define REG_LY 		MEM[0xff44]
-#define REG_LYC		MEM[0xff45]
-#define REG_DMA		MEM[0xff46]
-#define REG_WY		MEM[0xff4a]
-#define REG_WX		MEM[0xff4b]
-*/
-
-static LCDC_ON: u8 = 1 << 7;
+// static LCDC_ON: u8 = 1 << 7;
 static LCDC_WINDOW_TILE_MAP_SELECT: u8 = 1 << 6;
 static LCDC_WINDOW_ON: u8 = 1 << 5;
 static LCDC_BG_TILE_DATA: u8 = 1 << 4;
 static LCDC_BG_TILE_MAP_SELECT: u8 = 1 << 3;
 static LCDC_SPRITE_DOUBLE_HEIGHT: u8 = 1 << 2;
 static LCDC_SHOW_SPRITES: u8 = 1 << 1;
-static LCDC_SHOW_BG: u8 = 1 << 0;
+// static LCDC_SHOW_BG: u8 = 1 << 0;
 
 
-static SPRITE_PRIORITY: u8 = 1 << 7;
+// static SPRITE_PRIORITY: u8 = 1 << 7;
 static SPRITE_FLIP_V:u8 = 1 << 6;
 static SPRITE_FLIP_H: u8 = 1 << 5;
 
-static COLORS: [u8; 4] = [0xef, 0x9a, 0x45, 0x01];
+static COLORS: [(u8, u8); 4] = [(0xe7, 0x9c), (0x97, 0x08), (0x44, 0x31), (0x31, 0x6a)];
 
 pub struct GPU {
     pub clock: u16,
@@ -98,14 +83,14 @@ impl GPU {
         (redraw, vblank)
     }
 
-    fn set_pixel(buffer: &mut [u8], x: u8, y: u8, color: u16) {
+    #[inline]
+    fn set_pixel(buffer: &mut [u8], x: u8, y: u8, color_index: usize) {
         let sx = x as usize;
         let sy = y as usize;
-        let offset = ((sy * 256) + sx) * 4;
-        buffer[offset] = 255;
-        buffer[offset+1] = color as u8;
-        buffer[offset+2] = color as u8;
-        buffer[offset+3] = color as u8;
+        let offset = ((sy * 256) + sx) * 2;
+        let (top, bottom) = COLORS[color_index];
+        buffer[offset] = bottom;
+        buffer[offset+1] = top;
     }
 
     fn draw_tile(&self, mem: &Memory, tile_addr: u16, buffer: &mut [u8], x: u8, y: u8) {
@@ -118,8 +103,7 @@ impl GPU {
             for c in 0..8 {
                 let mut color_index = (line1 >> (7 - c)) & 1;
                 color_index |= if line2 & (0x80 >> c) != 0 { 2 } else { 0 };
-                let color = COLORS[color_index as usize];
-                GPU::set_pixel(buffer, x+c, y+r, color as u16);
+                GPU::set_pixel(buffer, x+c, y+r, color_index as usize);
             }
         }
     }
@@ -135,12 +119,11 @@ impl GPU {
                 let mut color_index = (line1 >> (7 - c)) & 1;
                 color_index |= if line2 & (0x80 >> c) != 0 { 2 } else { 0 };
                 if color_index > 0 {
-                    let color = COLORS[color_index as usize];
                     let mut gx = x+c;
                     let mut gy = y+r;
                     if (flags & SPRITE_FLIP_H) != 0 { gx = x+7-c; }
                     if (flags & SPRITE_FLIP_V) != 0 { gy = y+7-r; }
-                    GPU::set_pixel(buffer, gx, gy, color as u16);
+                    GPU::set_pixel(buffer, gx, gy, color_index as usize);
                 }
             }
         }
