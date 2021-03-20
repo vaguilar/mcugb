@@ -1,10 +1,9 @@
 [package]
-name = "mcugb_rust"
+name = "mcugb"
 version = "0.1.0"
 authors = ["Victor Aguilar <victoraguilar90@gmail.com>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+repository = "https://github.com/vaguilar/mcugb/"
 
 [dependencies]
 sdl2 = "0.34"
