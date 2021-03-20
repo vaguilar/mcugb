@@ -133,9 +133,8 @@ impl GPU {
         if *mem.reg_lcdc() & LCDC_BG_TILE_DATA != 0 {
             (tile_id as u16) * 16 + 0x8000
         } else {
-            // 0x9000 = -28672
-            let tile_sid = tile_id as i16;
-            (tile_sid * 16 - 28672) as u16
+            let tile_sid = (tile_id as i8) as i16 * 16;
+            0x9000_u16.wrapping_add(tile_sid as u16)
         }
     }
 
