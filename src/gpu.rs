@@ -103,7 +103,7 @@ impl GPU {
             for c in 0..8 {
                 let mut color_index = (line1 >> (7 - c)) & 1;
                 color_index |= if line2 & (0x80 >> c) != 0 { 2 } else { 0 };
-                GPU::set_pixel(buffer, x+c, y+r, color_index as usize);
+                GPU::set_pixel(buffer, x.wrapping_add(c), y.wrapping_add(r), color_index as usize);
             }
         }
     }
@@ -119,10 +119,10 @@ impl GPU {
                 let mut color_index = (line1 >> (7 - c)) & 1;
                 color_index |= if line2 & (0x80 >> c) != 0 { 2 } else { 0 };
                 if color_index > 0 {
-                    let mut gx = x+c;
-                    let mut gy = y+r;
-                    if (flags & SPRITE_FLIP_H) != 0 { gx = x+7-c; }
-                    if (flags & SPRITE_FLIP_V) != 0 { gy = y+7-r; }
+                    let mut gx = x.wrapping_add(c);
+                    let mut gy = y.wrapping_add(r);
+                    if (flags & SPRITE_FLIP_H) != 0 { gx = x.wrapping_add(7-c); }
+                    if (flags & SPRITE_FLIP_V) != 0 { gy = y.wrapping_add(7-r); }
                     GPU::set_pixel(buffer, gx, gy, color_index as usize);
                 }
             }
@@ -147,6 +147,7 @@ impl GPU {
             tile_ptr = 0x9c00;
         }
 
+        // Tiles
         for r in 0..32 {
             for c in 0..32 {
                 tile_id = mem.read8(tile_ptr);
@@ -170,14 +171,15 @@ impl GPU {
             win_ptr = 0x9c00;
         }
 
+        // Window
         if *mem.reg_lcdc() & LCDC_WINDOW_ON != 0 {
             for r in 0..32 {
                 for c in 0..32 {
                     tile_id = mem.read8(win_ptr);
                     win_ptr += 1;
                     tile_addr = self.get_tile_addr(mem, tile_id);
-                    let x = (c * 8) + *mem.reg_wx() - 7;
-                    let y = (r * 8) + *mem.reg_wy();
+                    let x = (c * 8u8).wrapping_add(*mem.reg_wx()).wrapping_sub(7);
+                    let y = (r * 8u8).wrapping_add(*mem.reg_wy());
                     if tile_id != 0 && x < 167 && y < 144 {
                         self.draw_tile(mem, tile_addr, buffer, x, y);
                     }
@@ -185,10 +187,10 @@ impl GPU {
             }
         }
 
+        // Sprites
         let mut id: u16;
         let mut flags: u8;
         let mut sprite_addr: u16 = 0xfe00;
-
         if *mem.reg_lcdc() & LCDC_SHOW_SPRITES != 0 {
             for _r in 0..40 {
                 let y = mem.read8(sprite_addr).wrapping_sub(16);
