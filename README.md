@@ -1,5 +1,7 @@
 # mcugb
-A GameBoy emulator written in Rust.
+A GameBoy emulator written in Rust using SDL2.
+
+![mcugb Screenshot](screenshot.png)
 
 ### Usage:
 ```
