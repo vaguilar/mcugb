@@ -11,7 +11,6 @@ use sdl2::pixels::PixelFormatEnum;
 use std::env;
 use std::collections::HashSet;
 use sdl2::rect::Rect;
-use std::time::{Duration, Instant};
 
 static SCALE_FACTOR: u32 = 2;
 
@@ -185,8 +184,6 @@ fn main() {
 
     println!("ROM Title: {:?}", gb.rom_title);
     let mut buf: [u8; 256 * 256 * 2] = [0; 256 * 256 * 2];
-    let mut instructions: u64 = 0;
-    let now = Instant::now();
     'running: loop {
         for event in event_pump.poll_iter() {
             if handle_event(&event, &mut gb) {
@@ -200,19 +197,12 @@ fn main() {
         }
 
         let (_cycles, redraw) = gb.step(&mut buf);
-        instructions += 1;
 
         if redraw {
             canvas.clear();
             texture.update(Rect::new(0, 0, 256, 256), &buf, 256 * 2).unwrap();
-            let wx = *gb.mem.reg_wx() as i32;
-            let wy = *gb.mem.reg_wy() as i32;
-            canvas.copy(&texture, Rect::new(wx, wy, 160, 144), None).unwrap();
+            canvas.copy(&texture, Rect::new(0, 0, 160, 144), None).unwrap();
             canvas.present();
-        }
-
-        if instructions % 8092 == 0 {
-            eprintln!("{} instructions per second", (instructions as f64) / now.elapsed().as_secs_f64());
         }
     }
 
