@@ -52,6 +52,9 @@ impl Memory {
                 let bank = if val == 0 { 1 } else { val };
                 println!("Switching to ROM bank {}\n", bank);
                 // TODO: actually switch banks
+                if val > 1 {
+                    panic!("Memory bank switching isn't implemented");
+                }
             },
             0x4000..=0x5fff => {
                 // TODO: ???
