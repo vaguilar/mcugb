@@ -1,17 +1,38 @@
 use memmap::Mmap;
 
+enum ROMSize {
+    BANKS2,
+    // BANKS4,
+    // BANKS8,
+    // BANKS16,
+    // BANKS32,
+    BANKS64,
+    // BANKS128,
+    // BANKS256,
+    // BANKS512,
+}
+
 pub struct Memory {
     rom: Mmap,
     pub data: [u8; 65536],
     pub joypad_states: [u8; 2],
+    rom_size: ROMSize,
+    memory_bank: usize,
 }
 
 impl Memory {
     pub fn with_rom(rom: Mmap) -> Memory {
+        let rom_size: ROMSize = match rom[0x0148] {
+            0 => ROMSize::BANKS2,
+            5 => ROMSize::BANKS64,
+            n => panic!("Unhandled ROM size {}", n),
+        };
         Memory {
-            rom: rom,
+            rom,
             data: [0; 65536],
             joypad_states: [0, 0],
+            rom_size,
+            memory_bank: 1,
         }
     }
 
@@ -20,7 +41,8 @@ impl Memory {
             0x0000..=0x3fff => self.rom[address as usize],
             0x4000..=0x7fff => {
                 // TODO switchable ROM bank
-                self.rom[address as usize]
+                let adjusted_address = 0x4000 * (self.memory_bank - 1) + (address as usize);
+                self.rom[adjusted_address]
             },
             0xe000..=0xfdff => {
                 self.data[(address - 0x1000) as usize]
@@ -45,15 +67,27 @@ impl Memory {
         // WIP
         match addr {
             0x0000..=0x1fff => {
-                // TODO: ???
+                // TODO: ??? enable RAM bank?
             },
             0x2000..=0x3fff => {
-                // ROM bank select (0 points to one as well)
-                let bank = if val == 0 { 1 } else { val };
-                println!("Switching to ROM bank {}\n", bank);
-                // TODO: actually switch banks
-                if val > 1 {
-                    panic!("Memory bank switching isn't implemented");
+                // TODO: implement all ROM sizes
+                match self.rom_size {
+                    ROMSize::BANKS2 => {
+                        // noop
+                    },
+                    ROMSize::BANKS64 => {
+                        match addr {
+                            0x2000..=0x2fff => {
+                                self.memory_bank &= !0xff;
+                                self.memory_bank |= val as usize;
+                            },
+                            0x3000..=0x3fff => {
+                                self.memory_bank &= !0x100;
+                                self.memory_bank |= ((val & 0x1) as usize) << 8;
+                            },
+                            _ => {},
+                        }
+                    },
                 }
             },
             0x4000..=0x5fff => {
