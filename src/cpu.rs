@@ -178,7 +178,7 @@ impl CPU {
 
     pub fn step(&mut self, mem: &mut Memory) -> u16 {
         let op = self.fetch8(mem);
-        eprintln!("Found 0x{:02X} at PC=0x{:04x}", op, self.pc - 1);
+        // eprintln!("Found 0x{:02X} at PC=0x{:04x}", op, self.pc - 1);
 
         // DEBUG
         if self.pc > 0x8000 && self.pc < 0xff00 {
@@ -624,9 +624,9 @@ impl CPU {
             0x3a => {
                 // ldd a, (hl)
                 self.reg.a = mem.read8(self.hl());
-                self.reg.l -= 1;
+                self.reg.l = self.reg.l.wrapping_sub(1);
                 if self.reg.l == 0xff {
-                    self.reg.h -= 1;
+                    self.reg.h = self.reg.h.wrapping_sub(1);
                 }
                 8
             }
