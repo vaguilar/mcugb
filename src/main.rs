@@ -5,14 +5,12 @@ mod gb;
 mod gpu;
 mod memory;
 
+use clap::Parser;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
-use std::env;
 use std::collections::HashSet;
 use sdl2::rect::Rect;
-
-static SCALE_FACTOR: u32 = 2;
 
 fn handle_event(event: &Event, gb: &mut gb::GB) -> bool {
     match event {
@@ -141,35 +139,56 @@ fn find_sdl_gl_driver() -> Option<u32> {
     None
 }
 
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    #[clap(short, long, default_value_t = 2)]
+    scale_factor: u32,
+
+    #[clap(short, long)]
+    break_points: Option<Vec<String>>,
+
+    #[clap()]
+    rom_path: String,
+}
+
 fn main() {
-    let mut break_points: HashSet<u16> = vec![
+    let args = Args::parse();
+    let scale_factor = args.scale_factor;
+    let rom_path = args.rom_path;
+    let mut break_points: HashSet<u16> = args.break_points
+        .unwrap_or(vec![])
+        .into_iter()
+        .map(|address_str| {
+            if address_str.starts_with("0x") {
+                u16::from_str_radix(&address_str[2..], 16).unwrap_or_else(|_| {
+                    panic!("Invalid breakpoint address: {}", address_str)
+                })
+            } else {
+                address_str.parse::<u16>().unwrap_or_else(|_| {
+                    panic!("Invalid breakpoint address: {}", address_str)
+                })
+            }
+        })
+        .collect();
+
+    break_points.extend::<Vec<u16>>(vec![
         // for testing
-     ].into_iter().collect();
+    ]);
 
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        eprintln!("usage: ./mcugb romfile");
-        return ();
-    }
-
-    let rom_path = &args[1];
-
-    // parse command line breakpoints
-    break_points.extend(
-        env::args().skip(2).map(|arg| u16::from_str_radix(&arg, 16).unwrap())
-    );
+    let gl_driver = find_sdl_gl_driver().unwrap();
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
-        .window("mcugb", 160 * SCALE_FACTOR, 144 * SCALE_FACTOR)
+        .window("mcugb", 160 * scale_factor, 144 * scale_factor)
         .position_centered()
         .opengl()
         .build()
         .unwrap();
     let mut canvas = window
         .into_canvas()
-        .index(find_sdl_gl_driver().unwrap())
+        .index(gl_driver)
         .build()
         .unwrap();
     let texture_creator = canvas.texture_creator();
@@ -183,7 +202,7 @@ fn main() {
     gb.reset();
 
     println!("ROM Title: {:?}", gb.rom_title);
-    let mut buf: [u8; 256 * 256 * 2] = [0; 256 * 256 * 2];
+    let mut frame_buffer: [u8; 256 * 256 * 2] = [0; 256 * 256 * 2];
     'running: loop {
         for event in event_pump.poll_iter() {
             if handle_event(&event, &mut gb) {
@@ -196,11 +215,11 @@ fn main() {
             break 'running;
         }
 
-        let (_cycles, redraw) = gb.step(&mut buf);
+        let (_cycles, redraw) = gb.step(&mut frame_buffer);
 
         if redraw {
             canvas.clear();
-            texture.update(Rect::new(0, 0, 256, 256), &buf, 256 * 2).unwrap();
+            texture.update(Rect::new(0, 0, 256, 256), &frame_buffer, 256 * 2).unwrap();
             canvas.copy(&texture, Rect::new(0, 0, 160, 144), None).unwrap();
             canvas.present();
         }

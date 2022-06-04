@@ -6,5 +6,6 @@ edition = "2018"
 repository = "https://github.com/vaguilar/mcugb/"
 
 [dependencies]
-sdl2 = "0.34"
+clap = { version = "3.1", features = [ "derive" ] }
 memmap = "0.7.0"
+sdl2 = "0.35"
