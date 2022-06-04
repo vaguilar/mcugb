@@ -5,6 +5,9 @@ authors = ["Victor Aguilar <victoraguilar90@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/vaguilar/mcugb/"
 
+[build-dependencies]
+pkg-config = "0.3.16"
+
 [dependencies]
 clap = { version = "3.1", features = [ "derive" ] }
 memmap = "0.7.0"
