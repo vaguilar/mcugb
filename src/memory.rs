@@ -67,7 +67,11 @@ impl Memory {
         // WIP
         match addr {
             0x0000..=0x1fff => {
+                if val < 2 {
+                    return;
+                }
                 // TODO: ??? enable RAM bank?
+                panic!("Unhandled write to 0x0000..=0x1fff, val = {:}", val);
             },
             0x2000..=0x3fff => {
                 // TODO: implement all ROM sizes
