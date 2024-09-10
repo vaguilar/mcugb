@@ -26,7 +26,7 @@ impl GB {
                 .to_owned(),
             mem: Memory::with_rom(rom),
             cpu: CPU::new(),
-            gpu: GPU { mode: 0, clock: 0 },
+            gpu: GPU::new(),
         }
     }
 

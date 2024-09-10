@@ -17,36 +17,48 @@ static SPRITE_FLIP_H: u8 = 1 << 5;
 
 static COLORS: [(u8, u8); 4] = [(0xe7, 0x9c), (0x97, 0x08), (0x44, 0x31), (0x31, 0x6a)];
 
+#[repr(u8)]
+enum PPUMode {
+    HBlank  = 0,
+    VBlank  = 1,
+    OAMScan = 2,
+    Drawing = 3, // VRAM read mode?
+}
+
 pub struct GPU {
     pub clock: u16,
-    pub mode: u8,
+    mode: PPUMode,
 }
 
 impl GPU {
+    pub fn new() -> GPU {
+        GPU { clock: 0, mode: PPUMode::VBlank }
+    }
+
     pub fn step(&mut self, mem: &mut Memory, cycles: u16) -> (bool, bool) {
         let mut redraw = false;
         let mut vblank = false;
         self.clock += cycles;
 
         match self.mode {
-            0 => {
+            PPUMode::HBlank => {
                 // HBlank
                 if self.clock >= 204 {
                     self.clock = 0;
                     *mem.reg_ly() = mem.reg_ly().wrapping_add(1);
 
                     if *mem.reg_ly() == 143 {
-                        self.mode = 1;
-                        *mem.reg_stat() = (*mem.reg_stat() & 0xfc) | self.mode;
+                        self.mode = PPUMode::VBlank;
+                        *mem.reg_stat() = (*mem.reg_stat() & 0xfc) | (PPUMode::VBlank as u8);
                         vblank = true;
                         redraw = true;
                     } else {
-                        self.mode = 2;
-                        *mem.reg_stat() = (*mem.reg_stat() & 0xfc) | self.mode;
+                        self.mode = PPUMode::OAMScan;
+                        *mem.reg_stat() = (*mem.reg_stat() & 0xfc) | (PPUMode::OAMScan as u8);
                     }
                 }
             }
-            1 => {
+            PPUMode::VBlank => {
                 // VBlank
                 if self.clock >= 456 {
                     self.clock = 0;
@@ -54,30 +66,27 @@ impl GPU {
 
                     if *mem.reg_ly() > 153 {
                         *mem.reg_ly() = 0;
-                        self.mode = 2;
-                        *mem.reg_stat() = (*mem.reg_stat() & 0xfc) | self.mode;
+                        self.mode = PPUMode::OAMScan;
+                        *mem.reg_stat() = (*mem.reg_stat() & 0xfc) | (PPUMode::OAMScan as u8);
                     }
                 }
             }
-            2 => {
+            PPUMode::OAMScan => {
                 // OAM read mode
                 if self.clock >= 80 {
                     self.clock = 0;
-                    self.mode = 3;
-                    *mem.reg_stat() = (*mem.reg_stat() & 0xfc) | self.mode;
+                    self.mode = PPUMode::Drawing;
+                    *mem.reg_stat() = (*mem.reg_stat() & 0xfc) | (PPUMode::Drawing as u8);
                 }
             }
-            3 => {
+            PPUMode::Drawing => {
                 // VRAM read mode
                 if self.clock >= 172 {
                     self.clock = 0;
-                    self.mode = 0;
-                    *mem.reg_stat() = (*mem.reg_stat() & 0xfc) | self.mode;
+                    self.mode = PPUMode::HBlank;
+                    *mem.reg_stat() = (*mem.reg_stat() & 0xfc) | (PPUMode::HBlank as u8);
                     // self.draw_scanline();
                 }
-            }
-            _ => {
-                panic!("Unhandled GPU mode {}", self.mode)
             }
         }
         (redraw, vblank)
