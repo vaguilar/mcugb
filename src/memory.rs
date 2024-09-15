@@ -1,16 +1,5 @@
-use memmap::Mmap;
+use crate::rom::{ROM, ROMSize};
 
-enum ROMSize {
-    BANKS2,
-    // BANKS4,
-    // BANKS8,
-    // BANKS16,
-    // BANKS32,
-    BANKS64,
-    // BANKS128,
-    // BANKS256,
-    // BANKS512,
-}
 
 #[repr(u8)]
 #[allow(dead_code)]
@@ -20,27 +9,20 @@ enum Joypad {
     None = 0x30,
 }
 
-pub struct Memory {
-    rom: Mmap,
+pub struct Memory<'a> {
+    pub rom: ROM<'a>,
     pub data: [u8; 65536],
     pub joypad_states: [u8; 2],
-    rom_size: ROMSize,
     memory_bank: usize,
     pub reg: IORegisters,
 }
 
-impl Memory {
-    pub fn with_rom(rom: Mmap) -> Memory {
-        let rom_size: ROMSize = match rom[0x0148] {
-            0 => ROMSize::BANKS2,
-            5 => ROMSize::BANKS64,
-            n => panic!("Unhandled ROM size {}", n),
-        };
+impl Memory<'_> {
+    pub fn with_rom_buffer(rom_buffer: &[u8]) -> Memory {
         Memory {
-            rom,
+            rom: ROM::new(rom_buffer),
             data: [0; 65536],
             joypad_states: [0, 0],
-            rom_size,
             memory_bank: 1,
             reg: IORegisters::new(),
         }
@@ -50,12 +32,12 @@ impl Memory {
         match address {
             0x0000..=0x3fff => {
                 // rom bank 0
-                self.rom[address as usize]
+                self.rom.buffer[address as usize]
             },
             0x4000..=0x7fff => {
                 // TODO: switchable ROM bank
                 let adjusted_address = 0x4000 * (self.memory_bank - 1) + (address as usize);
-                self.rom[adjusted_address]
+                self.rom.buffer[adjusted_address]
             },
             0x8000..=0x9fff => {
                 // vram
@@ -108,7 +90,7 @@ impl Memory {
             },
             0x2000..=0x3fff => {
                 // TODO: implement all ROM sizes
-                match self.rom_size {
+                match self.rom.header.rom_size {
                     ROMSize::BANKS2 => {
                         // noop
                     },
@@ -125,6 +107,7 @@ impl Memory {
                             _ => {},
                         }
                     },
+                    _ => { panic!("not supported yet!") }
                 }
             },
             0x4000..=0x5fff => {

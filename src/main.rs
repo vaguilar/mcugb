@@ -4,8 +4,10 @@ mod cpu;
 mod gb;
 mod gpu;
 mod memory;
+mod rom;
 
 use clap::Parser;
+use memmap::MmapOptions;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
@@ -198,10 +200,14 @@ fn main() {
     ).unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    let mut gb = gb::GB::with_rom(&rom_path);
+    let rom_file = std::fs::File::open(rom_path).unwrap();
+    let rom_buffer = unsafe { MmapOptions::new().map(&rom_file).unwrap() };
+    let mut gb = gb::GB::with_rom_buffer(&rom_buffer);
     gb.reset();
 
-    println!("ROM Title: {:?}", gb.rom_title);
+    println!("ROM Title: {:?}", gb.mem.rom.title());
+    println!("ROM Size: {:?}", gb.mem.rom.header.rom_size);
+    println!("RAM Size: {:?}", gb.mem.rom.header.ram_size);
     let mut frame_buffer: [u8; 256 * 256 * 2] = [0; 256 * 256 * 2];
     'running: loop {
         for event in event_pump.poll_iter() {

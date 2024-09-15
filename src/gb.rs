@@ -1,30 +1,17 @@
 use crate::cpu::{Interrupt, CPU};
 use crate::gpu::GPU;
 use crate::memory::Memory;
-use memmap::MmapOptions;
-use std::ffi::CStr;
-use std::fs::File;
 
-pub struct GB {
-    pub rom_path: String,
-    pub rom_title: String,
-    pub mem: Memory,
+pub struct GB<'a> {
+    pub mem: Memory<'a>,
     pub cpu: CPU,
     gpu: GPU,
 }
 
-impl GB {
-    pub fn with_rom(path: &str) -> GB {
-        let rom_file = File::open(path).unwrap();
-        let rom = unsafe { MmapOptions::new().map(&rom_file).unwrap() };
-        let title_ptr = &rom[0x0134..0x144];
+impl GB<'_> {
+    pub fn with_rom_buffer(rom_buffer: &[u8]) -> GB {
         GB {
-            rom_path: path.to_string(),
-            rom_title: unsafe { CStr::from_ptr(title_ptr.as_ptr() as *const i8) }
-                .to_str()
-                .unwrap()
-                .to_owned(),
-            mem: Memory::with_rom(rom),
+            mem: Memory::with_rom_buffer(rom_buffer),
             cpu: CPU::new(),
             gpu: GPU::new(),
         }
