@@ -18,6 +18,7 @@ pub struct Memory {
     pub joypad_states: [u8; 2],
     rom_size: ROMSize,
     memory_bank: usize,
+    pub reg: IORegisters,
 }
 
 impl Memory {
@@ -33,6 +34,7 @@ impl Memory {
             joypad_states: [0, 0],
             rom_size,
             memory_bank: 1,
+            reg: IORegisters::new(),
         }
     }
 
@@ -40,7 +42,7 @@ impl Memory {
         match address {
             0x0000..=0x3fff => self.rom[address as usize],
             0x4000..=0x7fff => {
-                // TODO switchable ROM bank
+                // TODO: switchable ROM bank
                 let adjusted_address = 0x4000 * (self.memory_bank - 1) + (address as usize);
                 self.rom[adjusted_address]
             },
@@ -242,7 +244,7 @@ impl Memory {
 
 /// memory starting at start at $fe00
 #[repr(C)]
-struct IORegisters {
+pub struct IORegisters {
     /// $fe00
     pub sprites: [u8; 160],
     /// Nintendo says use of this area is prohibited
@@ -255,7 +257,13 @@ struct IORegisters {
     pub serial_transfer: [u8; 2],
     _padding0: u8,
     /// $ff04
-    pub timer_divider: [u8; 4],
+    pub timer_divider: u8,
+    /// $ff05
+    pub timer_tima: u8,
+    /// $ff06
+    pub timer_tma: u8,
+    /// $ff07
+    pub timer_tac: u8,
     _padding1: [u8; 7],
     /// $ff0f
     pub interrupts: u8,
