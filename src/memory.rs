@@ -12,6 +12,13 @@ enum ROMSize {
     // BANKS512,
 }
 
+#[repr(u8)]
+enum Joypad {
+    Buttons = 0x10,
+    Directional = 0x20,
+    None = 0x30,
+}
+
 pub struct Memory {
     rom: Mmap,
     pub data: [u8; 65536],
@@ -146,49 +153,25 @@ impl Memory {
                 // empty ???
             },
             0xff00 => {
-                // joypad
-                if val & 0x10 != 0 {
-                    // non-directional
-                    self.reg.joypad = 0xd0 | self.joypad_states[0];
-                } else if val & 0x20 != 0 {
-                    // directional
-                    self.reg.joypad = 0xe0 | self.joypad_states[1];
+                // joypad, only top nibble is writable
+                let joypad: Joypad = unsafe { std::mem::transmute(val & 0x30) };
+                match joypad {
+                    Joypad::Buttons => {
+                        self.reg.joypad = (Joypad::Buttons as u8) | self.joypad_states[0];
+                    },
+                    Joypad::Directional => {
+                        self.reg.joypad = (Joypad::Directional as u8) | self.joypad_states[1];
+                    },
+                    Joypad::None => {
+                        self.reg.joypad = 0x3f;
+                    },
                 }
             },
-            // 0xff04 => {
-            //     // divider register
-            //     self.reg.timer_divider = 0;
-            // },
-            // 0xff0f => {
-            //     // interrupt register
-            //     self.reg.interrupts = val;
-            // },
-            // 0xff40 => {
-            //     // lcdc
-            //     self.reg.lcd_control = val;
-            //     // ???
-            // },
-            // 0xff41 => {
-            //     // lcdc stat
-            //     self.reg.lcd_stat = val;
-            // },
             0xff46 => {
                 // dma
                 self.reg.oam_dma_source_address = val;
                 self.mem_dma((val as u16) << 8);
             },
-            // 0xff00..=0xff7f => {
-            //     // IO ports + empty
-            //     self.data[addr as usize] = val;
-            // },
-            // 0xff80..=0xfffe => {
-            //     // internal RAM
-            //     self.data[addr as usize] = val;
-            // },
-            // 0xffff => {
-            //     // interrupt enable register
-            //     self.data[addr as usize] = val;
-            // },
             0xfe00..=0xffff => {
                 let buf = &mut self.reg as *mut _ as *mut [u8; 512];
                 let offset = (addr - 0xfe00) as usize;
