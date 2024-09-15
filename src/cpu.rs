@@ -136,15 +136,15 @@ impl CPU {
     }
 
     pub fn set_interrupt(&mut self, mem: &mut Memory, interrupt: Interrupt) {
-        mem.data[0xff0f] |= interrupt as u8;
+        mem.reg.interrupts |= interrupt as u8;
     }
 
     pub fn unset_interrupt(&mut self, mem: &mut Memory, interrupt: Interrupt) {
-        mem.data[0xff0f] &= !(interrupt as u8);
+        mem.reg.interrupts &= !(interrupt as u8);
     }
 
     pub fn interrupt_reg(&self, mem: &Memory) -> u8 {
-        mem.data[0xffff]
+        mem.reg.interrupt_enable
     }
 
     // Stack
@@ -195,29 +195,29 @@ impl CPU {
         }
 
         if self.interrupts {
-            let interrupt_flag = &mem.data[0xff0f];
+            let interrupt_flag = mem.reg.interrupts;
             let interrupt_enable = self.interrupt_reg(&mem);
-            if interrupt_enable & Interrupt::VBlank as u8 & *interrupt_flag != 0 {
+            if interrupt_enable & Interrupt::VBlank as u8 & interrupt_flag != 0 {
                 self.interrupts = false;
                 self.push_stack(mem, self.pc);
                 self.pc = 0x0040;
                 self.unset_interrupt(mem, Interrupt::VBlank);
-            } else if interrupt_enable & Interrupt::LCDC as u8 & *interrupt_flag != 0 {
+            } else if interrupt_enable & Interrupt::LCDC as u8 & interrupt_flag != 0 {
                 self.interrupts = false;
                 self.push_stack(mem, self.pc);
                 self.pc = 0x0048;
                 self.unset_interrupt(mem, Interrupt::LCDC);
-            } else if interrupt_enable & Interrupt::Timer as u8 & *interrupt_flag != 0 {
+            } else if interrupt_enable & Interrupt::Timer as u8 & interrupt_flag != 0 {
                 self.interrupts = false;
                 self.push_stack(mem, self.pc);
                 self.pc = 0x0050;
                 self.unset_interrupt(mem, Interrupt::Timer);
-            } else if interrupt_enable & Interrupt::Serial as u8 & *interrupt_flag != 0 {
+            } else if interrupt_enable & Interrupt::Serial as u8 & interrupt_flag != 0 {
                 self.interrupts = false;
                 self.push_stack(mem, self.pc);
                 self.pc = 0x0058;
                 self.unset_interrupt(mem, Interrupt::Serial);
-            } else if interrupt_enable & Interrupt::JoyPad as u8 & *interrupt_flag != 0 {
+            } else if interrupt_enable & Interrupt::JoyPad as u8 & interrupt_flag != 0 {
                 self.interrupts = false;
                 self.push_stack(mem, self.pc);
                 self.pc = 0x0060;
@@ -231,7 +231,7 @@ impl CPU {
     }
 
     fn update_timer(&mut self, mem: &mut Memory, cycles: u16) {
-        let tac = *mem.reg_tac();
+        let tac = mem.reg.timer_tac;
 
         let mode: usize = tac as usize & 0b00000011;
         let timer_on: u8 = tac & 0b00000010;
@@ -240,10 +240,10 @@ impl CPU {
             self.timer_cycles += cycles;
             if self.timer_cycles > TAC_SELECT[mode] {
                 self.timer_cycles -= TAC_SELECT[mode];
-                *mem.reg_tima() += 1;
+                mem.reg.timer_tima += 1;
 
-                if *mem.reg_tima() == 0 {
-                    *mem.reg_tima() = *mem.reg_tma();
+                if mem.reg.timer_tima == 0 {
+                    mem.reg.timer_tima = mem.reg.timer_tma;
                     self.set_interrupt(mem, Interrupt::Timer);
                 }
             }
@@ -252,7 +252,7 @@ impl CPU {
         self.divider_cycles += cycles;
         if self.divider_cycles > 255 {
             self.divider_cycles -= 255;
-            *mem.reg_div() = mem.reg_div().wrapping_add(1);
+            mem.reg.timer_divider = mem.reg.timer_divider.wrapping_add(1);
         }
     }
 
@@ -1174,7 +1174,7 @@ impl CPU {
             }
             0xae => {
                 // xor a, (hl)
-                let hl = mem.data[self.hl() as usize];
+                let hl = mem.read8(self.hl());
                 xor(&mut self.reg.a, hl, &mut self.reg.f, true)
             }
             0xaf => {
@@ -1208,7 +1208,7 @@ impl CPU {
             }
             0xb6 => {
                 // or (hl)
-                byte = mem.data[self.hl() as usize];
+                byte = mem.read8(self.hl());
                 or(&mut self.reg.a, byte, &mut self.reg.f, true)
             }
             0xb7 => {
@@ -1650,7 +1650,7 @@ impl CPU {
             3 => &mut self.reg.e,
             4 => &mut self.reg.h,
             5 => &mut self.reg.l,
-            6 => &mut mem.data[self.hl() as usize],
+            6 => &mut mem.read8(self.hl()),
             7 => &mut self.reg.a,
             _ => panic!("???"),
         };

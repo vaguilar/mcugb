@@ -40,22 +40,45 @@ impl Memory {
 
     pub fn read8(&self, address: u16) -> u8 {
         match address {
-            0x0000..=0x3fff => self.rom[address as usize],
+            0x0000..=0x3fff => {
+                // rom bank 0
+                self.rom[address as usize]
+            },
             0x4000..=0x7fff => {
                 // TODO: switchable ROM bank
                 let adjusted_address = 0x4000 * (self.memory_bank - 1) + (address as usize);
                 self.rom[adjusted_address]
             },
+            0x8000..=0x9fff => {
+                // vram
+                self.data[address as usize]
+            },
+            0xa000..=0xbfff => {
+                // external ram
+                self.data[address as usize]
+            },
+            0xc000..=0xcfff => {
+                // work ram
+                self.data[address as usize]
+            },
+            0xd000..=0xdfff => {
+                // work ram
+                self.data[address as usize]
+            },
             0xe000..=0xfdff => {
+                // echo ram, mirror of $c000–$ddff
                 self.data[(address - 0x1000) as usize]
             },
             0xff41 => {
                 // TODO
-                let ly = self.data[0xff44];
-                let lyc = self.data[0xff45];
-                0x80 | if ly == lyc { 2 } else { 0 }
-            }
-            _ => self.data[address as usize]
+                // 0x80 | if self.reg.lcd_y == self.reg.lcd_yc { 2 } else { 0 }
+                self.reg.lcd_stat | if self.reg.lcd_y == self.reg.lcd_yc { 2 } else { 0 }
+            },
+            0xfe00..=0xffff => {
+                let buf = &self.reg as *const _ as *const [u8; 512];
+                let offset = (address - 0xfe00) as usize;
+                unsafe { (*buf)[offset] }
+            },
         }
     }
 
@@ -115,10 +138,10 @@ impl Memory {
                 // low RAM
                 self.data[addr as usize] = val;
             },
-            0xfe00..=0xfebf => {
-                // OAM
-                self.data[addr as usize] = val;
-            },
+            // 0xfe00..=0xfebf => {
+            //     // OAM
+            //     self.data[addr as usize] = val;
+            // },
             0xfea0..=0xfeff => {
                 // empty ???
             },
@@ -126,45 +149,50 @@ impl Memory {
                 // joypad
                 if val & 0x10 != 0 {
                     // non-directional
-                    *self.reg_joypad() = 0xd0 | self.joypad_states[0];
+                    self.reg.joypad = 0xd0 | self.joypad_states[0];
                 } else if val & 0x20 != 0 {
                     // directional
-                    *self.reg_joypad() = 0xe0 | self.joypad_states[1];
+                    self.reg.joypad = 0xe0 | self.joypad_states[1];
                 }
             },
-            0xff04 => {
-                // interrupt register
-                self.data[addr as usize] = val;
-            },
-            0xff0f => {
-                // divider register
-                *self.reg_div() = 0;
-            },
-            0xff40 => {
-                // lcdc
-                *self.reg_lcdc() = val;
-                // ???
-            },
-            0xff41 => {
-                // lcdc stat
-                *self.reg_stat() = val;
-            },
+            // 0xff04 => {
+            //     // divider register
+            //     self.reg.timer_divider = 0;
+            // },
+            // 0xff0f => {
+            //     // interrupt register
+            //     self.reg.interrupts = val;
+            // },
+            // 0xff40 => {
+            //     // lcdc
+            //     self.reg.lcd_control = val;
+            //     // ???
+            // },
+            // 0xff41 => {
+            //     // lcdc stat
+            //     self.reg.lcd_stat = val;
+            // },
             0xff46 => {
                 // dma
-                *self.reg_dma() = val;
+                self.reg.oam_dma_source_address = val;
                 self.mem_dma((val as u16) << 8);
             },
-            0xff00..=0xff7f => {
-                // IO ports + empty
-                self.data[addr as usize] = val;
-            },
-            0xff80..=0xfffe => {
-                // internal RAM
-                self.data[addr as usize] = val;
-            },
-            0xffff => {
-                // interrupt enable register
-                self.data[addr as usize] = val;
+            // 0xff00..=0xff7f => {
+            //     // IO ports + empty
+            //     self.data[addr as usize] = val;
+            // },
+            // 0xff80..=0xfffe => {
+            //     // internal RAM
+            //     self.data[addr as usize] = val;
+            // },
+            // 0xffff => {
+            //     // interrupt enable register
+            //     self.data[addr as usize] = val;
+            // },
+            0xfe00..=0xffff => {
+                let buf = &mut self.reg as *mut _ as *mut [u8; 512];
+                let offset = (addr - 0xfe00) as usize;
+                unsafe { (*buf)[offset] = val };
             },
             _ => {
                 panic!("Unhandled memory write to address: 0x{:04X}", addr);
@@ -180,65 +208,7 @@ impl Memory {
     pub fn mem_dma(&mut self, addr: u16) {
         let start = addr as usize;
         let end = start + 160;
-        self.data.copy_within(start..end, 0xfe00) // TODO use copy_nonoverlapping?
-    }
-
-    // Memory Mapped IO
-
-    pub fn reg_joypad(&mut self) -> &mut u8 {
-        &mut self.data[0xff00]
-    }
-
-    pub fn reg_div(&mut self) -> &mut u8 {
-        &mut self.data[0xff04]
-    }
-
-    pub fn reg_tima(&mut self) -> &mut u8 {
-        &mut self.data[0xff05]
-    }
-
-    pub fn reg_tma(&mut self) -> &mut u8 {
-        &mut self.data[0xff06]
-    }
-
-    pub fn reg_tac(&mut self) -> &mut u8 {
-        &mut self.data[0xff07]
-    }
-
-    pub fn reg_lcdc(&mut self) -> &mut u8 {
-        &mut self.data[0xff40]
-    }
-
-    pub fn reg_stat(&mut self) -> &mut u8 {
-        &mut self.data[0xff41]
-    }
-
-    pub fn reg_scy(&mut self) -> &mut u8 {
-        &mut self.data[0xff42]
-    }
-
-    pub fn reg_scx(&mut self) -> &mut u8 {
-        &mut self.data[0xff43]
-    }
-
-    pub fn reg_ly(&mut self) -> &mut u8 {
-        &mut self.data[0xff44]
-    }
-
-    // pub fn reg_lyc(&mut self) -> &mut u8 {
-    //     &mut self.data[0xff45]
-    // }
-
-    pub fn reg_dma(&mut self) -> &mut u8 {
-        &mut self.data[0xff47]
-    }
-
-    pub fn reg_wy(&mut self) -> &mut u8 {
-        &mut self.data[0xff4a]
-    }
-
-    pub fn reg_wx(&mut self) -> &mut u8 {
-        &mut self.data[0xff4b]
+        self.reg.sprites.copy_from_slice(&self.data[start..end]);
     }
 }
 

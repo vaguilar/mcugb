@@ -45,16 +45,16 @@ impl GPU {
                 // HBlank
                 if self.clock >= 204 {
                     self.clock = 0;
-                    *mem.reg_ly() = mem.reg_ly().wrapping_add(1);
+                    mem.reg.lcd_y = mem.reg.lcd_y.wrapping_add(1);
 
-                    if *mem.reg_ly() == 143 {
+                    if mem.reg.lcd_y == 143 {
                         self.mode = PPUMode::VBlank;
-                        *mem.reg_stat() = (*mem.reg_stat() & 0xfc) | (PPUMode::VBlank as u8);
+                        mem.reg.lcd_stat = (mem.reg.lcd_stat & 0xfc) | (PPUMode::VBlank as u8);
                         vblank = true;
                         redraw = true;
                     } else {
                         self.mode = PPUMode::OAMScan;
-                        *mem.reg_stat() = (*mem.reg_stat() & 0xfc) | (PPUMode::OAMScan as u8);
+                        mem.reg.lcd_stat = (mem.reg.lcd_stat & 0xfc) | (PPUMode::OAMScan as u8);
                     }
                 }
             }
@@ -62,12 +62,12 @@ impl GPU {
                 // VBlank
                 if self.clock >= 456 {
                     self.clock = 0;
-                    *mem.reg_ly() = mem.reg_ly().wrapping_add(1);
+                    mem.reg.lcd_y = mem.reg.lcd_y.wrapping_add(1);
 
-                    if *mem.reg_ly() > 153 {
-                        *mem.reg_ly() = 0;
+                    if mem.reg.lcd_y > 153 {
+                        mem.reg.lcd_y = 0;
                         self.mode = PPUMode::OAMScan;
-                        *mem.reg_stat() = (*mem.reg_stat() & 0xfc) | (PPUMode::OAMScan as u8);
+                        mem.reg.lcd_stat = (mem.reg.lcd_stat & 0xfc) | (PPUMode::OAMScan as u8);
                     }
                 }
             }
@@ -76,7 +76,7 @@ impl GPU {
                 if self.clock >= 80 {
                     self.clock = 0;
                     self.mode = PPUMode::Drawing;
-                    *mem.reg_stat() = (*mem.reg_stat() & 0xfc) | (PPUMode::Drawing as u8);
+                    mem.reg.lcd_stat = (mem.reg.lcd_stat & 0xfc) | (PPUMode::Drawing as u8);
                 }
             }
             PPUMode::Drawing => {
@@ -84,7 +84,7 @@ impl GPU {
                 if self.clock >= 172 {
                     self.clock = 0;
                     self.mode = PPUMode::HBlank;
-                    *mem.reg_stat() = (*mem.reg_stat() & 0xfc) | (PPUMode::HBlank as u8);
+                    mem.reg.lcd_stat = (mem.reg.lcd_stat & 0xfc) | (PPUMode::HBlank as u8);
                     // self.draw_scanline();
                 }
             }
@@ -139,7 +139,7 @@ impl GPU {
     }
 
     fn get_tile_addr(&self, mem: &mut Memory, tile_id: u8) -> u16 {
-        if *mem.reg_lcdc() & LCDC_BG_TILE_DATA != 0 {
+        if mem.reg.lcd_control & LCDC_BG_TILE_DATA != 0 {
             (tile_id as u16) * 16 + 0x8000
         } else {
             let tile_sid = (tile_id as i8) as i16 * 16;
@@ -152,7 +152,7 @@ impl GPU {
         let mut tile_addr: u16;
         let mut tile_ptr: u16 = 0x9800;
 
-        if *mem.reg_lcdc() & LCDC_BG_TILE_MAP_SELECT != 0 {
+        if mem.reg.lcd_control & LCDC_BG_TILE_MAP_SELECT != 0 {
             tile_ptr = 0x9c00;
         }
 
@@ -162,8 +162,8 @@ impl GPU {
                 tile_id = mem.read8(tile_ptr);
                 tile_ptr += 1;
                 tile_addr = self.get_tile_addr(mem, tile_id);
-                let scx = *mem.reg_scx();
-                let scy = *mem.reg_scy();
+                let scx = mem.reg.lcd_scx;
+                let scy = mem.reg.lcd_scx;
                 self.draw_tile(
                     mem,
                     tile_addr,
@@ -176,19 +176,19 @@ impl GPU {
 
         let mut win_ptr: u16 = 0x9800;
 
-        if *mem.reg_lcdc() & LCDC_WINDOW_TILE_MAP_SELECT != 0 {
+        if mem.reg.lcd_control & LCDC_WINDOW_TILE_MAP_SELECT != 0 {
             win_ptr = 0x9c00;
         }
 
         // Window
-        if *mem.reg_lcdc() & LCDC_WINDOW_ON != 0 {
+        if mem.reg.lcd_control & LCDC_WINDOW_ON != 0 {
             for r in 0..32 {
                 for c in 0..32 {
                     tile_id = mem.read8(win_ptr);
                     win_ptr += 1;
                     tile_addr = self.get_tile_addr(mem, tile_id);
-                    let x = (c * 8u8).wrapping_add(*mem.reg_wx()).wrapping_sub(7);
-                    let y = (r * 8u8).wrapping_add(*mem.reg_wy());
+                    let x = (c * 8u8).wrapping_add(mem.reg.wx).wrapping_sub(7);
+                    let y = (r * 8u8).wrapping_add(mem.reg.wy);
                     if tile_id != 0 && x < 167 && y < 144 {
                         self.draw_tile(mem, tile_addr, buffer, x, y);
                     }
@@ -200,7 +200,7 @@ impl GPU {
         let mut id: u16;
         let mut flags: u8;
         let mut sprite_addr: u16 = 0xfe00;
-        if *mem.reg_lcdc() & LCDC_SHOW_SPRITES != 0 {
+        if mem.reg.lcd_control & LCDC_SHOW_SPRITES != 0 {
             for _r in 0..40 {
                 let y = mem.read8(sprite_addr).wrapping_sub(16);
                 sprite_addr += 1;
@@ -216,7 +216,7 @@ impl GPU {
                 }
                 self.draw_sprite(mem, id * 16 + 0x8000, buffer, x, y, flags);
 
-                if *mem.reg_lcdc() & LCDC_SPRITE_DOUBLE_HEIGHT != 0 {
+                if mem.reg.lcd_control & LCDC_SPRITE_DOUBLE_HEIGHT != 0 {
                     self.draw_sprite(mem, id * 16 + 0x8000 + 16, buffer, x, y + 8, flags);
                 }
             }

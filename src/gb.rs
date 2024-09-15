@@ -68,9 +68,9 @@ impl GB {
         self.mem.joypad_states[0] = 0x0f;
         self.mem.joypad_states[1] = 0x0f;
 
-        *self.mem.reg_lcdc() = 0x91;
-        self.mem.data[0xff47] = 0xfc;
-        self.mem.data[0xff48] = 0xff;
-        self.mem.data[0xff49] = 0xff;
+        self.mem.reg.lcd_control = 0x91;
+        self.mem.reg.bg_palette_data = 0xfc;
+        self.mem.reg.object_palette_0 = 0xff;
+        self.mem.reg.object_palette_1 = 0xff;
     }
 }
