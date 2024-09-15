@@ -13,6 +13,7 @@ enum ROMSize {
 }
 
 #[repr(u8)]
+#[allow(dead_code)]
 enum Joypad {
     Buttons = 0x10,
     Directional = 0x20,
@@ -207,7 +208,8 @@ pub struct IORegisters {
     /// $ff00
     pub joypad: u8,
     /// $ff01
-    pub serial_transfer: [u8; 2],
+    pub serial_transfer_data: u8,
+    pub serial_transfer_control: u8,
     _padding0: u8,
     /// $ff04
     pub timer_divider: u8,
