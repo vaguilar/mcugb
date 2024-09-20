@@ -1,11 +1,11 @@
 use crate::cpu::{Interrupt, CPU};
-use crate::gpu::GPU;
+use crate::ppu::PPU;
 use crate::memory::Memory;
 
 pub struct GB<'a> {
     pub mem: Memory<'a>,
     pub cpu: CPU,
-    gpu: GPU,
+    ppu: PPU,
 }
 
 impl GB<'_> {
@@ -13,7 +13,7 @@ impl GB<'_> {
         GB {
             mem: Memory::with_rom_buffer(rom_buffer),
             cpu: CPU::new(),
-            gpu: GPU::new(),
+            ppu: PPU::new(),
         }
     }
 
@@ -31,14 +31,14 @@ impl GB<'_> {
 
     pub fn step(&mut self, buf: &mut [u8]) -> (u16, bool) {
         let cycles = self.cpu.step(&mut self.mem);
-        let (redraw, vblank) = self.gpu.step(&mut self.mem, cycles);
+        let (redraw, vblank) = self.ppu.step(&mut self.mem, cycles);
 
         if vblank {
             self.cpu.set_interrupt(&mut self.mem, Interrupt::VBlank);
         }
 
         if redraw {
-            self.gpu.draw_screen(&mut self.mem, buf);
+            self.ppu.draw_screen(&mut self.mem, buf);
         }
 
         (cycles, redraw)

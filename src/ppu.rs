@@ -25,14 +25,14 @@ enum PPUMode {
     Drawing = 3, // VRAM read mode?
 }
 
-pub struct GPU {
+pub struct PPU {
     pub clock: u16,
     mode: PPUMode,
 }
 
-impl GPU {
-    pub fn new() -> GPU {
-        GPU { clock: 0, mode: PPUMode::VBlank }
+impl PPU {
+    pub fn new() -> PPU {
+        PPU { clock: 0, mode: PPUMode::VBlank }
     }
 
     pub fn step(&mut self, mem: &mut Memory, cycles: u16) -> (bool, bool) {
@@ -112,7 +112,7 @@ impl GPU {
             for c in 0..8 {
                 let mut color_index = (line1 >> (7 - c)) & 1;
                 color_index |= if line2 & (0x80 >> c) != 0 { 2 } else { 0 };
-                GPU::set_pixel(buffer, x.wrapping_add(c), y.wrapping_add(r), color_index as usize);
+                PPU::set_pixel(buffer, x.wrapping_add(c), y.wrapping_add(r), color_index as usize);
             }
         }
     }
@@ -132,7 +132,7 @@ impl GPU {
                     let mut gy = y.wrapping_add(r);
                     if (flags & SPRITE_FLIP_H) != 0 { gx = x.wrapping_add(7-c); }
                     if (flags & SPRITE_FLIP_V) != 0 { gy = y.wrapping_add(7-r); }
-                    GPU::set_pixel(buffer, gx, gy, color_index as usize);
+                    PPU::set_pixel(buffer, gx, gy, color_index as usize);
                 }
             }
         }

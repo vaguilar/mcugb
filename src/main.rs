@@ -2,7 +2,7 @@ extern crate sdl2;
 
 mod cpu;
 mod gb;
-mod gpu;
+mod ppu;
 mod memory;
 mod rom;
 
