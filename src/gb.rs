@@ -31,7 +31,7 @@ impl GB<'_> {
 
     pub fn step(&mut self, buf: &mut [u8]) -> (u16, bool) {
         let cycles = self.cpu.step(&mut self.mem);
-        let (redraw, vblank) = self.ppu.step(&mut self.mem, cycles);
+        let (redraw, vblank) = self.ppu.step(&mut self.mem, buf, cycles);
 
         if vblank {
             self.cpu.set_interrupt(&mut self.mem, Interrupt::VBlank);
