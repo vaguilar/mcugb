@@ -1,5 +1,29 @@
 use crate::memory::Memory;
 use std::convert::TryInto;
+use bitmask_enum::bitmask;
+
+#[bitmask(u8)]
+enum LCDControl {
+    ShowBackground = 1,
+    ShowSprite,
+    SpriteDoubleHeight,
+    BackgroundTileMapSelect,
+    BackgroundTileData,
+    WindowOn,
+    WindowTileMapSelect,
+}
+
+#[bitmask(u8)]
+enum SpriteFlags {
+    // _ = 1 << 0,
+    // _ = 1 << 1,
+    // _ = 1 << 2,
+    VRAMBank = 1 << 3,
+    DMGPalette = 1 << 4,
+    FlipHorizontal = 1 << 5,
+    FlipVertical = 1 << 6,
+    BGPriority = 1 << 7, // if set, bg has priority over this sprite for bg values 1-3
+}
 
 // static LCDC_ON: u8 = 1 << 7;
 static LCDC_WINDOW_TILE_MAP_SELECT: u8 = 1 << 6;
