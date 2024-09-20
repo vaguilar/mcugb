@@ -23,6 +23,7 @@ static FLAG_N: u8 = 0x40;
 static FLAG_H: u8 = 0x20;
 static FLAG_C: u8 = 0x10;
 
+#[repr(u8)]
 pub enum Interrupt {
     VBlank = 0x01,
     LCDC = 0x02,
@@ -185,14 +186,12 @@ impl CPU {
             // panic!("We probably shouldn't be here...");
         }
 
-        let cycles: u16;
-
-        if op == 0xcb {
-            let op2 = self.fetch8(mem);
-            cycles = self.execute_cb(mem, op2);
+        let cycles = if op == 0xcb {
+            let op = self.fetch8(mem);
+            self.execute_cb(mem, op)
         } else {
-            cycles = self.execute(mem, op);
-        }
+            self.execute(mem, op)
+        };
 
         if self.interrupts {
             let interrupt_flag = mem.reg.interrupts;
@@ -262,6 +261,94 @@ impl CPU {
         let result4: u8;
         let result: u8;
         let addr: u16;
+
+        let x = (0b11000000 & op) >> 6;
+        let y = (0b00111000 & op) >> 3;
+        let p = y >> 2;
+        let q = y & 1;
+        let z = 0b00000111 & op;
+
+        let new_cycles: Option<u16> = match (x, y, z) {
+            (0, 0, 0) => {
+                // nop
+                Some(4)
+            },
+            (0, 1, 0) => {
+                // ld (nn), sp
+                // 20
+                None
+            },
+            (0, 2, 0) => {
+                // stop
+                // TODO: implement correctly
+                // panic!("STOP");
+                None
+            },
+            (0, 3, 0) => {
+                // jr d
+                let offset = self.fetch8(mem) as i8; // signed value
+                let offset = offset as i16; // sign extend
+                self.pc = self.pc.wrapping_add(offset as u16);
+                Some(8)
+            },
+            (0, _, 0) => {
+                // jr cc[y-4], d
+                None
+            },
+            (0, _, 1) => {
+                // ld rp[p], nn
+                None
+            },
+            (1, 6, 6) => {
+                // halt
+                None
+            },
+            (1, _, _) => {
+                // LD r[y], r[z]
+                let rz = match z {
+                    0 => self.reg.b,
+                    1 => self.reg.c,
+                    2 => self.reg.d,
+                    3 => self.reg.e,
+                    4 => self.reg.h,
+                    5 => self.reg.l,
+                    6 => mem.read8(self.hl()),
+                    7 => self.reg.a,
+                    _ => unreachable!(),
+                };
+                match y {
+                    0 => { self.reg.b = rz; },
+                    1 => { self.reg.c = rz; },
+                    2 => { self.reg.d = rz; },
+                    3 => { self.reg.e = rz; },
+                    4 => { self.reg.h = rz; },
+                    5 => { self.reg.l = rz; },
+                    6 => { mem.write8(self.hl(), rz); },
+                    7 => { self.reg.a = rz; },
+                    _ => unreachable!(),
+                };
+                Some(if z == 6 || y == 6 { 8 } else { 4 })
+            }
+            (2, _, _) => {
+                // alu[y] r[z]
+                None
+            },
+            (3, _, 7) => {
+                // rst n
+                self.push_stack(mem, self.pc);
+                self.pc = (y * 8) as u16;
+                Some(16)
+            },
+            (_, _, _) => {
+                // eventually uncomment this
+                // unreachable!()
+                None
+            },
+        };
+
+        if let Some(new_cycles) = new_cycles {
+            return new_cycles;
+        }
 
         match op {
             0x00 => 0,
