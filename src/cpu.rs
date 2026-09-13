@@ -1941,19 +1941,28 @@ fn srl(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
 
 
 fn daa(dst: &mut u8, flags: &mut u8) -> u16 {
-    let (high, low) = (*dst >> 4 & 0xf, *dst & 0xf);
-    let correction: u8 = match (high, low) {
-        (0xa..=0xf, 0xa..=0xf) => 0x66,
-        (_, 0xa..=0xf) => 0x06,
-        (0xa..=0xf, _) => 0x66,
-        _ => 0,
-    };
-    let (result, carry) = dst.overflowing_add(correction);
-    *dst = result;
+    let subtract = *flags & FLAG_N != 0;
+    let half_carry = *flags & FLAG_H != 0;
+    let mut carry = *flags & FLAG_C != 0;
+    let mut correction = 0;
 
-    set_flag_if(flags, FLAG_Z, *dst == 0);
-    set_flag(flags, FLAG_N, false);
-    set_flag_if(flags, FLAG_Z, carry);
+    if half_carry || (!subtract && (*dst & 0x0f) > 0x09) {
+        correction |= 0x06;
+    }
+    if carry || (!subtract && *dst > 0x99) {
+        correction |= 0x60;
+        carry = true;
+    }
+
+    *dst = if subtract {
+        dst.wrapping_sub(correction)
+    } else {
+        dst.wrapping_add(correction)
+    };
+
+    set_flag(flags, FLAG_Z, *dst == 0);
+    set_flag(flags, FLAG_H, false);
+    set_flag(flags, FLAG_C, carry);
     4
 }
 
@@ -2009,4 +2018,40 @@ fn sra(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
     set_flag(flags, FLAG_H, false);
     set_flag(flags, FLAG_C, old_bit0 != 0);
     if indirect { 16 } else { 8 }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{daa, FLAG_C, FLAG_H, FLAG_N, FLAG_Z};
+
+    #[test]
+    fn daa_adjusts_addition_results() {
+        let mut value = 0x3c;
+        let mut flags = 0;
+        assert_eq!(daa(&mut value, &mut flags), 4);
+        assert_eq!((value, flags), (0x42, 0));
+
+        value = 0x9a;
+        flags = 0;
+        daa(&mut value, &mut flags);
+        assert_eq!((value, flags), (0x00, FLAG_Z | FLAG_C));
+
+        value = 0x10;
+        flags = FLAG_H;
+        daa(&mut value, &mut flags);
+        assert_eq!((value, flags), (0x16, 0));
+    }
+
+    #[test]
+    fn daa_adjusts_subtraction_results() {
+        let mut value = 0x0f;
+        let mut flags = FLAG_N | FLAG_H;
+        daa(&mut value, &mut flags);
+        assert_eq!((value, flags), (0x09, FLAG_N));
+
+        value = 0xff;
+        flags = FLAG_N | FLAG_H | FLAG_C;
+        daa(&mut value, &mut flags);
+        assert_eq!((value, flags), (0x99, FLAG_N | FLAG_C));
+    }
 }
