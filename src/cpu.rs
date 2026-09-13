@@ -233,15 +233,16 @@ impl CPU {
         let tac = mem.reg.timer_tac;
 
         let mode: usize = tac as usize & 0b00000011;
-        let timer_on: u8 = tac & 0b00000010;
+        let timer_on: u8 = tac & 0b00000100;
 
         if timer_on != 0 {
             self.timer_cycles += cycles;
-            if self.timer_cycles > TAC_SELECT[mode] {
+            if self.timer_cycles >= TAC_SELECT[mode] {
                 self.timer_cycles -= TAC_SELECT[mode];
-                mem.reg.timer_tima += 1;
+                let (timer, overflow) = mem.reg.timer_tima.overflowing_add(1);
+                mem.reg.timer_tima = timer;
 
-                if mem.reg.timer_tima == 0 {
+                if overflow {
                     mem.reg.timer_tima = mem.reg.timer_tma;
                     self.set_interrupt(mem, Interrupt::Timer);
                 }
@@ -249,8 +250,8 @@ impl CPU {
         }
 
         self.divider_cycles += cycles;
-        if self.divider_cycles > 255 {
-            self.divider_cycles -= 255;
+        if self.divider_cycles >= 256 {
+            self.divider_cycles -= 256;
             mem.reg.timer_divider = mem.reg.timer_divider.wrapping_add(1);
         }
     }
@@ -2022,7 +2023,43 @@ fn sra(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
 
 #[cfg(test)]
 mod tests {
-    use super::{daa, FLAG_C, FLAG_H, FLAG_N, FLAG_Z};
+    use super::{daa, CPU, Interrupt, FLAG_C, FLAG_H, FLAG_N, FLAG_Z};
+    use crate::memory::Memory;
+
+    fn test_memory(rom: &[u8]) -> Memory<'_> {
+        Memory::with_rom_buffer(rom)
+    }
+
+    #[test]
+    fn timer_overflow_reloads_and_requests_interrupt() {
+        let rom = [0; 0x150];
+        let mut memory = test_memory(&rom);
+        let mut cpu = CPU::new();
+        memory.reg.timer_tac = 0b101;
+        memory.reg.timer_tima = 0xff;
+        memory.reg.timer_tma = 0x42;
+
+        cpu.update_timer(&mut memory, 16);
+
+        assert_eq!(memory.reg.timer_tima, 0x42);
+        assert_ne!(memory.reg.interrupts & Interrupt::Timer as u8, 0);
+        assert_eq!(cpu.timer_cycles, 0);
+    }
+
+    #[test]
+    fn divider_increments_after_256_cycles() {
+        let rom = [0; 0x150];
+        let mut memory = test_memory(&rom);
+        let mut cpu = CPU::new();
+
+        cpu.update_timer(&mut memory, 255);
+        assert_eq!(memory.reg.timer_divider, 0);
+        assert_eq!(cpu.divider_cycles, 255);
+
+        cpu.update_timer(&mut memory, 1);
+        assert_eq!(memory.reg.timer_divider, 1);
+        assert_eq!(cpu.divider_cycles, 0);
+    }
 
     #[test]
     fn daa_adjusts_addition_results() {
