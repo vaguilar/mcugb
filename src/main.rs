@@ -7,7 +7,7 @@ mod memory;
 mod rom;
 
 use clap::Parser;
-use memmap::MmapOptions;
+use memmap2::MmapOptions;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
