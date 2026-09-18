@@ -1831,13 +1831,15 @@ fn adc(dst: &mut u8, src: u8, flags: &mut u8, indirect: bool) -> u16 {
 }
 
 fn sbc(dst: &mut u8, src: u8, flags: &mut u8, indirect: bool) -> u16 {
-    let carry = if *flags & FLAG_C == 0 { 0 } else { 1 };
-    let (result, borrow) = dst.overflowing_sub(src.wrapping_add(carry));
+    let carry = u8::from(*flags & FLAG_C != 0);
+    let original = *dst;
+    let subtrahend = src as u16 + carry as u16;
+    let result = original.wrapping_sub(src).wrapping_sub(carry);
 
-    if result == 0 { set_flag(flags, FLAG_Z, true); }
+    set_flag(flags, FLAG_Z, result == 0);
     set_flag(flags, FLAG_N, true);
-    if (*dst & 0xf) < (src.wrapping_add(carry) & 0xf) { set_flag(flags, FLAG_H, true); }
-    if !borrow { set_flag(flags, FLAG_C, true); }
+    set_flag(flags, FLAG_H, (original & 0x0f) < (src & 0x0f) + carry);
+    set_flag(flags, FLAG_C, (original as u16) < subtrahend);
 
     *dst = result;
 
@@ -2090,6 +2092,34 @@ mod tests {
         super::adc(&mut value, 0x01, &mut flags, true);
 
         assert_eq!((value, flags), (0x10, FLAG_H));
+    }
+
+    #[test]
+    fn sbc_sets_borrow_and_half_borrow_with_carry_in() {
+        let mut value = 0x00;
+        let mut flags = FLAG_C;
+
+        assert_eq!(super::sbc(&mut value, 0xff, &mut flags, false), 4);
+        assert_eq!((value, flags), (0x00, FLAG_Z | FLAG_N | FLAG_H | FLAG_C));
+    }
+
+    #[test]
+    fn sbc_replaces_stale_flags() {
+        let mut value = 0x03;
+        let mut flags = FLAG_Z | FLAG_H | FLAG_C;
+
+        super::sbc(&mut value, 0x01, &mut flags, false);
+
+        assert_eq!((value, flags), (0x01, FLAG_N));
+    }
+
+    #[test]
+    fn sbc_sets_half_borrow_without_full_borrow() {
+        let mut value = 0x10;
+        let mut flags = 0;
+
+        assert_eq!(super::sbc(&mut value, 0x01, &mut flags, true), 8);
+        assert_eq!((value, flags), (0x0f, FLAG_N | FLAG_H));
     }
 
     #[test]
