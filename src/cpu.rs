@@ -1874,11 +1874,7 @@ fn dec8(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
     }
     *flags |= FLAG_N;
 
-    if !half_borrow {
-        *flags |= FLAG_H;
-    } else {
-        *flags &= !FLAG_H;
-    }
+    set_flag(flags, FLAG_H, half_borrow);
     if indirect { 12 } else { 4 }
 }
 
@@ -2120,6 +2116,24 @@ mod tests {
 
         assert_eq!(super::sbc(&mut value, 0x01, &mut flags, true), 8);
         assert_eq!((value, flags), (0x0f, FLAG_N | FLAG_H));
+    }
+
+    #[test]
+    fn dec_sets_half_carry_on_low_nibble_borrow() {
+        let mut value = 0x10;
+        let mut flags = FLAG_C;
+
+        assert_eq!(super::dec8(&mut value, &mut flags, false), 4);
+        assert_eq!((value, flags), (0x0f, FLAG_N | FLAG_H | FLAG_C));
+    }
+
+    #[test]
+    fn dec_clears_stale_half_carry_without_borrow() {
+        let mut value = 0x11;
+        let mut flags = FLAG_H | FLAG_C;
+
+        assert_eq!(super::dec8(&mut value, &mut flags, true), 12);
+        assert_eq!((value, flags), (0x10, FLAG_N | FLAG_C));
     }
 
     #[test]
