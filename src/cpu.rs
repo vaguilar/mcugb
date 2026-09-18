@@ -79,7 +79,7 @@ impl CPU {
     }
 
     pub fn set_af(&mut self, val: u16) {
-        self.reg.f = val as u8;
+        self.reg.f = (val as u8) & 0xF0;
         self.reg.a = (val >> 8) as u8;
     }
 
@@ -2184,6 +2184,17 @@ mod tests {
             assert_eq!(cpu.execute(&mut memory, opcode), 4);
             assert_eq!((cpu.reg.a, cpu.reg.f), (expected_value, expected_flags));
         }
+    }
+
+    #[test]
+    fn set_af_discards_invalid_flag_bits() {
+        let mut cpu = CPU::new();
+
+        cpu.set_af(0x12ff);
+
+        assert_eq!(cpu.reg.a, 0x12);
+        assert_eq!(cpu.reg.f, 0xf0);
+        assert_eq!(cpu.af(), 0x12f0);
     }
 
     #[test]
