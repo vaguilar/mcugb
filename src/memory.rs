@@ -4,9 +4,22 @@ use crate::rom::{ROM, ROMSize};
 #[repr(u8)]
 #[allow(dead_code)]
 enum Joypad {
+    Both = 0x00,
     Buttons = 0x10,
     Directional = 0x20,
     None = 0x30,
+}
+
+impl From<u8> for Joypad {
+    fn from(value: u8) -> Self {
+        match value & 0x30 {
+            0x00 => Joypad::Both,
+            0x10 => Joypad::Buttons,
+            0x20 => Joypad::Directional,
+            0x30 => Joypad::None,
+            _ => unreachable!(),
+        }
+    }
 }
 
 pub struct Memory<'a> {
@@ -138,13 +151,15 @@ impl Memory<'_> {
             },
             0xff00 => {
                 // joypad, only top nibble is writable
-                let joypad: Joypad = unsafe { std::mem::transmute(val & 0x30) };
-                match joypad {
+                match Joypad::from(val) {
+                    Joypad::Both => {
+                        self.reg.joypad = self.joypad_states[0] & self.joypad_states[1];
+                    },
                     Joypad::Buttons => {
-                        self.reg.joypad = (Joypad::Buttons as u8) | self.joypad_states[0];
+                        self.reg.joypad = Joypad::Buttons as u8 | self.joypad_states[0];
                     },
                     Joypad::Directional => {
-                        self.reg.joypad = (Joypad::Directional as u8) | self.joypad_states[1];
+                        self.reg.joypad = Joypad::Directional as u8 | self.joypad_states[1];
                     },
                     Joypad::None => {
                         self.reg.joypad = 0x3f;
@@ -258,5 +273,21 @@ pub struct IORegisters {
 impl IORegisters {
     fn new() -> IORegisters {
         unsafe { std::mem::zeroed() }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Memory;
+
+    #[test]
+    fn selecting_both_joypad_groups_combines_active_low_inputs() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        memory.joypad_states = [0b1110, 0b1101];
+
+        memory.write8(0xff00, 0x00);
+
+        assert_eq!(memory.reg.joypad, 0b1100);
     }
 }
