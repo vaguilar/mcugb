@@ -2,3 +2,11 @@
 .vscode/
 roms
 target
+
+# Profiling artifacts
+*.prof
+*.stacks
+*.folded
+/perf.data*
+/flamegraph*.svg
+/output*.svg
