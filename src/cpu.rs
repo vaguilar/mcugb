@@ -387,7 +387,9 @@ impl CPU {
             }
             0x07 => {
                 // rlca
-                rlc(&mut self.reg.a, &mut self.reg.f, false)
+                rlc(&mut self.reg.a, &mut self.reg.f, false);
+                self.set_flag(FLAG_Z, false);
+                4
             }
             0x08 => {
                 // ld (nn), sp
@@ -435,6 +437,7 @@ impl CPU {
             0x0f => {
                 // rrca
                 rrc(&mut self.reg.a, &mut self.reg.f, false);
+                self.set_flag(FLAG_Z, false);
                 4
             }
             0x10 => {
@@ -479,7 +482,9 @@ impl CPU {
             }
             0x17 => {
                 // rla
-                rl(&mut self.reg.a, &mut self.reg.f, false)
+                rl(&mut self.reg.a, &mut self.reg.f, false);
+                self.set_flag(FLAG_Z, false);
+                4
             }
             0x18 => {
                 // jr n
@@ -526,6 +531,7 @@ impl CPU {
             0x1f => {
                 // rra
                 rr(&mut self.reg.a, &mut self.reg.f, false);
+                self.set_flag(FLAG_Z, false);
                 4
             }
             0x20 => {
@@ -1880,7 +1886,7 @@ fn dec8(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
 
 fn rlc(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
     let old_bit7 = *dst & (1 << 7);
-    *dst = *dst << 1;
+    *dst = dst.rotate_left(1);
     set_flag(flags, FLAG_Z, *dst == 0);
     set_flag(flags, FLAG_N, false);
     set_flag(flags, FLAG_H, false);
@@ -1904,8 +1910,8 @@ fn rr(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
 }
 
 fn rrc(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
-    let old_bit0 = *dst & (1 << 7);
-    *dst = *dst >> 1;
+    let old_bit0 = *dst & 1;
+    *dst = dst.rotate_right(1);
     set_flag(flags, FLAG_Z, *dst == 0);
     set_flag(flags, FLAG_N, false);
     set_flag(flags, FLAG_H, false);
@@ -2134,6 +2140,50 @@ mod tests {
 
         assert_eq!(super::dec8(&mut value, &mut flags, true), 12);
         assert_eq!((value, flags), (0x10, FLAG_N | FLAG_C));
+    }
+
+    #[test]
+    fn circular_rotates_wrap_bits_and_update_flags() {
+        let mut value = 0x80;
+        let mut flags = FLAG_Z | FLAG_N | FLAG_H;
+
+        assert_eq!(super::rlc(&mut value, &mut flags, false), 8);
+        assert_eq!((value, flags), (0x01, FLAG_C));
+
+        value = 0x01;
+        flags = FLAG_Z | FLAG_N | FLAG_H;
+        assert_eq!(super::rrc(&mut value, &mut flags, true), 16);
+        assert_eq!((value, flags), (0x80, FLAG_C));
+    }
+
+    #[test]
+    fn cb_circular_rotate_sets_zero_from_result() {
+        let mut value = 0x00;
+        let mut flags = FLAG_N | FLAG_H | FLAG_C;
+
+        super::rlc(&mut value, &mut flags, false);
+
+        assert_eq!((value, flags), (0x00, FLAG_Z));
+    }
+
+    #[test]
+    fn accumulator_rotates_clear_zero_and_take_four_cycles() {
+        let rom = [0; 0x150];
+        let mut memory = test_memory(&rom);
+
+        for (opcode, value, flags, expected_value, expected_flags) in [
+            (0x07, 0x80, FLAG_Z | FLAG_N | FLAG_H, 0x01, FLAG_C),
+            (0x0f, 0x01, FLAG_Z | FLAG_N | FLAG_H, 0x80, FLAG_C),
+            (0x17, 0x80, FLAG_Z | FLAG_N | FLAG_H, 0x00, FLAG_C),
+            (0x1f, 0x01, FLAG_Z | FLAG_N | FLAG_H, 0x00, FLAG_C),
+        ] {
+            let mut cpu = CPU::new();
+            cpu.reg.a = value;
+            cpu.reg.f = flags;
+
+            assert_eq!(cpu.execute(&mut memory, opcode), 4);
+            assert_eq!((cpu.reg.a, cpu.reg.f), (expected_value, expected_flags));
+        }
     }
 
     #[test]
