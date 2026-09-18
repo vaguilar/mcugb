@@ -74,7 +74,7 @@ impl ROM<'_> {
         std::str::from_utf8(&self.header.title[..title_end]).expect("invalid utf-8 sequence for ROM title")
     }
 
-    pub fn new(rom_buffer: &[u8]) -> ROM {
+    pub fn new(rom_buffer: &[u8]) -> ROM<'_> {
         let mut rom = ROM { header: Default::default(), buffer: rom_buffer };
         let rom_header_size = std::mem::size_of::<ROMHeader>();
         let rom_header_start = 0x0100;
