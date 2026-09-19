@@ -38,10 +38,6 @@ impl GB<'_> {
             self.cpu.set_interrupt(&mut self.mem, Interrupt::VBlank);
         }
 
-        if redraw {
-            self.ppu.draw_screen(&mut self.mem, buf);
-        }
-
         (cycles, redraw)
     }
 
