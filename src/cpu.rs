@@ -137,15 +137,15 @@ impl CPU {
     }
 
     pub fn set_interrupt(&mut self, mem: &mut Memory, interrupt: Interrupt) {
-        mem.reg.interrupts |= interrupt as u8;
+        mem.reg_mut().interrupts |= interrupt as u8;
     }
 
     pub fn unset_interrupt(&mut self, mem: &mut Memory, interrupt: Interrupt) {
-        mem.reg.interrupts &= !(interrupt as u8);
+        mem.reg_mut().interrupts &= !(interrupt as u8);
     }
 
     pub fn interrupt_reg(&self, mem: &Memory) -> u8 {
-        mem.reg.interrupt_enable
+        mem.reg().interrupt_enable
     }
 
     // Stack
@@ -194,7 +194,7 @@ impl CPU {
         };
 
         if self.interrupts {
-            let interrupt_flag = mem.reg.interrupts;
+            let interrupt_flag = mem.reg().interrupts;
             let interrupt_enable = self.interrupt_reg(&mem);
             if interrupt_enable & Interrupt::VBlank as u8 & interrupt_flag != 0 {
                 self.interrupts = false;
@@ -230,7 +230,7 @@ impl CPU {
     }
 
     fn update_timer(&mut self, mem: &mut Memory, cycles: u16) {
-        let tac = mem.reg.timer_tac;
+        let tac = mem.reg().timer_tac;
 
         let mode: usize = tac as usize & 0b00000011;
         let timer_on: u8 = tac & 0b00000100;
@@ -239,11 +239,12 @@ impl CPU {
             self.timer_cycles += cycles;
             if self.timer_cycles >= TAC_SELECT[mode] {
                 self.timer_cycles -= TAC_SELECT[mode];
-                let (timer, overflow) = mem.reg.timer_tima.overflowing_add(1);
-                mem.reg.timer_tima = timer;
+                let (timer, overflow) = mem.reg().timer_tima.overflowing_add(1);
+                mem.reg_mut().timer_tima = timer;
 
                 if overflow {
-                    mem.reg.timer_tima = mem.reg.timer_tma;
+                    let tma = mem.reg().timer_tma;
+                    mem.reg_mut().timer_tima = tma;
                     self.set_interrupt(mem, Interrupt::Timer);
                 }
             }
@@ -252,7 +253,8 @@ impl CPU {
         self.divider_cycles += cycles;
         if self.divider_cycles >= 256 {
             self.divider_cycles -= 256;
-            mem.reg.timer_divider = mem.reg.timer_divider.wrapping_add(1);
+            let divider = mem.reg().timer_divider.wrapping_add(1);
+            mem.reg_mut().timer_divider = divider;
         }
     }
 
@@ -2041,14 +2043,14 @@ mod tests {
         let rom = [0; 0x150];
         let mut memory = test_memory(&rom);
         let mut cpu = CPU::new();
-        memory.reg.timer_tac = 0b101;
-        memory.reg.timer_tima = 0xff;
-        memory.reg.timer_tma = 0x42;
+        memory.reg_mut().timer_tac = 0b101;
+        memory.reg_mut().timer_tima = 0xff;
+        memory.reg_mut().timer_tma = 0x42;
 
         cpu.update_timer(&mut memory, 16);
 
-        assert_eq!(memory.reg.timer_tima, 0x42);
-        assert_ne!(memory.reg.interrupts & Interrupt::Timer as u8, 0);
+        assert_eq!(memory.reg().timer_tima, 0x42);
+        assert_ne!(memory.reg().interrupts & Interrupt::Timer as u8, 0);
         assert_eq!(cpu.timer_cycles, 0);
     }
 
@@ -2059,11 +2061,11 @@ mod tests {
         let mut cpu = CPU::new();
 
         cpu.update_timer(&mut memory, 255);
-        assert_eq!(memory.reg.timer_divider, 0);
+        assert_eq!(memory.reg().timer_divider, 0);
         assert_eq!(cpu.divider_cycles, 255);
 
         cpu.update_timer(&mut memory, 1);
-        assert_eq!(memory.reg.timer_divider, 1);
+        assert_eq!(memory.reg().timer_divider, 1);
         assert_eq!(cpu.divider_cycles, 0);
     }
 

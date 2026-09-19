@@ -88,28 +88,33 @@ impl PPU {
             PPUMode::HBlank => {
                 if self.clock >= 204 {
                     self.clock -= 204;
-                    mem.reg.lcd_y = mem.reg.lcd_y.wrapping_add(1);
+                    let lcd_y = mem.reg().lcd_y.wrapping_add(1);
+                    mem.reg_mut().lcd_y = lcd_y;
 
-                    if mem.reg.lcd_y == 143 {
+                    if mem.reg().lcd_y == 143 {
                         self.mode = PPUMode::VBlank;
-                        mem.reg.lcd_stat = (mem.reg.lcd_stat & 0xfc) | (PPUMode::VBlank as u8);
+                        let lcd_stat = (mem.reg().lcd_stat & 0xfc) | (PPUMode::VBlank as u8);
+                        mem.reg_mut().lcd_stat = lcd_stat;
                         vblank = true;
                         redraw = true;
                     } else {
                         self.mode = PPUMode::OAMScan;
-                        mem.reg.lcd_stat = (mem.reg.lcd_stat & 0xfc) | (PPUMode::OAMScan as u8);
+                        let lcd_stat = (mem.reg().lcd_stat & 0xfc) | (PPUMode::OAMScan as u8);
+                        mem.reg_mut().lcd_stat = lcd_stat;
                     }
                 }
             }
             PPUMode::VBlank => {
                 if self.clock >= 456 {
                     self.clock -= 456;
-                    mem.reg.lcd_y = mem.reg.lcd_y.wrapping_add(1);
+                    let lcd_y = mem.reg().lcd_y.wrapping_add(1);
+                    mem.reg_mut().lcd_y = lcd_y;
 
-                    if mem.reg.lcd_y > 153 {
-                        mem.reg.lcd_y = 0;
+                    if mem.reg().lcd_y > 153 {
+                        mem.reg_mut().lcd_y = 0;
                         self.mode = PPUMode::OAMScan;
-                        mem.reg.lcd_stat = (mem.reg.lcd_stat & 0xfc) | (PPUMode::OAMScan as u8);
+                        let lcd_stat = (mem.reg().lcd_stat & 0xfc) | (PPUMode::OAMScan as u8);
+                        mem.reg_mut().lcd_stat = lcd_stat;
                     }
                 }
             }
@@ -122,8 +127,8 @@ impl PPU {
                     let sprites = unsafe {
                         std::mem::transmute::<&[u8], &[OAMSprite]>(&mem.data[0xfe00..0xfe9f])
                     };
-                    let ly = mem.reg.lcd_y;
-                    let sprite_height = if mem.reg.lcd_control & LCDC_SPRITE_DOUBLE_HEIGHT != 0 { 16 } else { 8 };
+                    let ly = mem.reg().lcd_y;
+                    let sprite_height = if mem.reg().lcd_control & LCDC_SPRITE_DOUBLE_HEIGHT != 0 { 16 } else { 8 };
                     let mut i = 0;
                     for sprite in sprites {
                         if sprite.adjusted_x() > 0 && ly >= sprite.adjusted_y() && ly < sprite.adjusted_y() + sprite_height {
@@ -141,7 +146,8 @@ impl PPU {
 
                     self.clock -= 80;
                     self.mode = PPUMode::Drawing;
-                    mem.reg.lcd_stat = (mem.reg.lcd_stat & 0xfc) | (PPUMode::Drawing as u8);
+                    let lcd_stat = (mem.reg().lcd_stat & 0xfc) | (PPUMode::Drawing as u8);
+                    mem.reg_mut().lcd_stat = lcd_stat;
                 }
             }
             PPUMode::Drawing => {
@@ -149,7 +155,8 @@ impl PPU {
                 if self.clock >= 172 {
                     self.clock -= 172;
                     self.mode = PPUMode::HBlank;
-                    mem.reg.lcd_stat = (mem.reg.lcd_stat & 0xfc) | (PPUMode::HBlank as u8);
+                    let lcd_stat = (mem.reg().lcd_stat & 0xfc) | (PPUMode::HBlank as u8);
+                    mem.reg_mut().lcd_stat = lcd_stat;
                     self.draw_scanline(mem, buffer);
                 }
             }
@@ -158,13 +165,13 @@ impl PPU {
     }
 
     fn draw_scanline(&mut self, mem: &mut Memory, buffer: &mut [u8]) {
-        let ly = mem.reg.lcd_y;
-        let scx = mem.reg.lcd_scx;
-        let scy = mem.reg.lcd_scy;
+        let ly = mem.reg().lcd_y;
+        let scx = mem.reg().lcd_scx;
+        let scy = mem.reg().lcd_scy;
         let bg_y: u16 = (ly.wrapping_add(scy) / 8).into();
         let py = (ly.wrapping_add(scy) % 8) as u16;
 
-        let tile_ptr: u16 = if mem.reg.lcd_control & LCDC_BG_TILE_MAP_SELECT != 0 {
+        let tile_ptr: u16 = if mem.reg().lcd_control & LCDC_BG_TILE_MAP_SELECT != 0 {
             0x9c00
         } else {
             0x9800
@@ -181,13 +188,13 @@ impl PPU {
             let bg_pixel = (line1.rotate_left(px as u32) & 1) | (line2.rotate_left(px as u32 + 1) & 2);
 
             let mut sprite = None;
-            if mem.reg.lcd_control & LCDC_SHOW_SPRITES != 0 {
+            if mem.reg().lcd_control & LCDC_SHOW_SPRITES != 0 {
                 sprite = self.sprite_buffer.iter()
                     .filter(|sprite| sprite.x <= x + 8 && x + 8 < sprite.x + 8)
                     .next();
             }
             let (sprite_pixel, bg_to_object_priority)  = if let Some(sprite) = sprite {
-                let sprite_height = if mem.reg.lcd_control & LCDC_SPRITE_DOUBLE_HEIGHT != 0 { 16 } else { 8 };
+                let sprite_height = if mem.reg().lcd_control & LCDC_SPRITE_DOUBLE_HEIGHT != 0 { 16 } else { 8 };
                 let tile_id = (sprite.tile_id as u16) & 0xff;
                 let sprite_tile_addr = (tile_id * 16) + 0x8000;
                 dbg!(sprite, ly, x);
@@ -263,7 +270,7 @@ impl PPU {
     }
 
     fn get_tile_addr(&self, mem: &mut Memory, tile_id: u8) -> u16 {
-        if mem.reg.lcd_control & LCDC_BG_TILE_DATA != 0 {
+        if mem.reg().lcd_control & LCDC_BG_TILE_DATA != 0 {
             (tile_id as u16) * 16 + 0x8000
         } else {
             let tile_sid = (tile_id as i8) as i16 * 16;
@@ -276,7 +283,7 @@ impl PPU {
         let mut tile_addr: u16;
         let mut tile_ptr: u16 = 0x9800;
 
-        if mem.reg.lcd_control & LCDC_BG_TILE_MAP_SELECT != 0 {
+        if mem.reg().lcd_control & LCDC_BG_TILE_MAP_SELECT != 0 {
             tile_ptr = 0x9c00;
         }
 
@@ -286,8 +293,8 @@ impl PPU {
                 tile_id = mem.read8(tile_ptr);
                 tile_ptr += 1;
                 tile_addr = self.get_tile_addr(mem, tile_id);
-                let scx = mem.reg.lcd_scx;
-                let scy = mem.reg.lcd_scx;
+                let scx = mem.reg().lcd_scx;
+                let scy = mem.reg().lcd_scx;
                 self.draw_tile(
                     mem,
                     tile_addr,
@@ -300,19 +307,19 @@ impl PPU {
 
         let mut win_ptr: u16 = 0x9800;
 
-        if mem.reg.lcd_control & LCDC_WINDOW_TILE_MAP_SELECT != 0 {
+        if mem.reg().lcd_control & LCDC_WINDOW_TILE_MAP_SELECT != 0 {
             win_ptr = 0x9c00;
         }
 
         // Window
-        if mem.reg.lcd_control & LCDC_WINDOW_ON != 0 {
+        if mem.reg().lcd_control & LCDC_WINDOW_ON != 0 {
             for r in 0..32 {
                 for c in 0..32 {
                     tile_id = mem.read8(win_ptr);
                     win_ptr += 1;
                     tile_addr = self.get_tile_addr(mem, tile_id);
-                    let x = (c * 8u8).wrapping_add(mem.reg.wx).wrapping_sub(7);
-                    let y = (r * 8u8).wrapping_add(mem.reg.wy);
+                    let x = (c * 8u8).wrapping_add(mem.reg().wx).wrapping_sub(7);
+                    let y = (r * 8u8).wrapping_add(mem.reg().wy);
                     if tile_id != 0 && x < 167 && y < 144 {
                         self.draw_tile(mem, tile_addr, buffer, x, y);
                     }
@@ -324,7 +331,7 @@ impl PPU {
         let mut id: u16;
         let mut flags: u8;
         let mut sprite_addr: u16 = 0xfe00;
-        if mem.reg.lcd_control & LCDC_SHOW_SPRITES != 0 {
+        if mem.reg().lcd_control & LCDC_SHOW_SPRITES != 0 {
             for _r in 0..40 {
                 let y = mem.read8(sprite_addr).wrapping_sub(16);
                 sprite_addr += 1;
@@ -340,7 +347,7 @@ impl PPU {
                 }
                 self.draw_sprite(mem, id * 16 + 0x8000, buffer, x, y, flags);
 
-                if mem.reg.lcd_control & LCDC_SPRITE_DOUBLE_HEIGHT != 0 {
+                if mem.reg().lcd_control & LCDC_SPRITE_DOUBLE_HEIGHT != 0 {
                     self.draw_sprite(mem, id * 16 + 0x8000 + 16, buffer, x, y + 8, flags);
                 }
             }

@@ -27,8 +27,11 @@ pub struct Memory<'a> {
     pub data: [u8; 65536],
     pub joypad_states: [u8; 2],
     memory_bank: usize,
-    pub reg: IORegisters,
 }
+
+// IORegisters is an exact byte-for-byte view of $FE00-$FFFF.
+const _: [(); 0x200] = [(); std::mem::size_of::<IORegisters>()];
+const _: [(); 1] = [(); std::mem::align_of::<IORegisters>()];
 
 impl Memory<'_> {
     pub fn with_rom_buffer(rom_buffer: &[u8]) -> Memory {
@@ -37,8 +40,15 @@ impl Memory<'_> {
             data: [0; 65536],
             joypad_states: [0, 0],
             memory_bank: 1,
-            reg: IORegisters::new(),
         }
+    }
+
+    pub fn reg(&self) -> &IORegisters {
+        unsafe { &*(self.data[0xfe00..].as_ptr() as *const IORegisters) }
+    }
+
+    pub fn reg_mut(&mut self) -> &mut IORegisters {
+        unsafe { &mut *(self.data[0xfe00..].as_mut_ptr() as *mut IORegisters) }
     }
 
     pub fn read8(&self, address: u16) -> u8 {
@@ -74,13 +84,11 @@ impl Memory<'_> {
             },
             0xff41 => {
                 // TODO
-                // 0x80 | if self.reg.lcd_y == self.reg.lcd_yc { 2 } else { 0 }
-                self.reg.lcd_stat | if self.reg.lcd_y == self.reg.lcd_yc { 2 } else { 0 }
+                // 0x80 | if self.reg().lcd_y == self.reg().lcd_yc { 2 } else { 0 }
+                self.reg().lcd_stat | if self.reg().lcd_y == self.reg().lcd_yc { 2 } else { 0 }
             },
             0xfe00..=0xffff => {
-                let buf = &self.reg as *const _ as *const [u8; 512];
-                let offset = (address - 0xfe00) as usize;
-                unsafe { (*buf)[offset] }
+                self.data[address as usize]
             },
         }
     }
@@ -153,28 +161,26 @@ impl Memory<'_> {
                 // joypad, only top nibble is writable
                 match Joypad::from(val) {
                     Joypad::Both => {
-                        self.reg.joypad = self.joypad_states[0] & self.joypad_states[1];
+                        self.reg_mut().joypad = self.joypad_states[0] & self.joypad_states[1];
                     },
                     Joypad::Buttons => {
-                        self.reg.joypad = Joypad::Buttons as u8 | self.joypad_states[0];
+                        self.reg_mut().joypad = Joypad::Buttons as u8 | self.joypad_states[0];
                     },
                     Joypad::Directional => {
-                        self.reg.joypad = Joypad::Directional as u8 | self.joypad_states[1];
+                        self.reg_mut().joypad = Joypad::Directional as u8 | self.joypad_states[1];
                     },
                     Joypad::None => {
-                        self.reg.joypad = 0x3f;
+                        self.reg_mut().joypad = 0x3f;
                     },
                 }
             },
             0xff46 => {
                 // dma
-                self.reg.oam_dma_source_address = val;
+                self.reg_mut().oam_dma_source_address = val;
                 self.mem_dma((val as u16) << 8);
             },
             0xfe00..=0xffff => {
-                let buf = &mut self.reg as *mut _ as *mut [u8; 512];
-                let offset = (addr - 0xfe00) as usize;
-                unsafe { (*buf)[offset] = val };
+                self.data[addr as usize] = val;
             },
             _ => {
                 panic!("Unhandled memory write to address: 0x{:04X}", addr);
@@ -190,7 +196,8 @@ impl Memory<'_> {
     pub fn mem_dma(&mut self, addr: u16) {
         let start = addr as usize;
         let end = start + 160;
-        self.reg.sprites.copy_from_slice(&self.data[start..end]);
+        let source = self.data[start..end].to_owned();
+        self.reg_mut().sprites.copy_from_slice(&source);
     }
 }
 
@@ -270,12 +277,6 @@ pub struct IORegisters {
     pub interrupt_enable: u8,
 }
 
-impl IORegisters {
-    fn new() -> IORegisters {
-        unsafe { std::mem::zeroed() }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::Memory;
@@ -288,6 +289,18 @@ mod tests {
 
         memory.write8(0xff00, 0x00);
 
-        assert_eq!(memory.reg.joypad, 0b1100);
+        assert_eq!(memory.reg().joypad, 0b1100);
+    }
+
+    #[test]
+    fn register_view_shares_the_data_backing_array() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+
+        memory.reg_mut().timer_tima = 0x42;
+        assert_eq!(memory.data[0xff05], 0x42);
+
+        memory.data[0xff06] = 0x99;
+        assert_eq!(memory.reg().timer_tma, 0x99);
     }
 }
