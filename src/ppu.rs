@@ -35,10 +35,8 @@ struct OAMSprite {
 }
 
 impl OAMSprite {
-    #[inline]
-    fn adjusted_x(&self) -> u8 { self.x.wrapping_sub(8) }
-    #[inline]
-    fn adjusted_y(&self) -> u8 { self.y.wrapping_sub(16) }
+    #[inline] fn screen_x(&self) -> i16 { self.x as i16 - 8 }
+    #[inline] fn screen_y(&self) -> i16 { self.y as i16 - 16 }
 
     fn bg_to_object_priority(&self) -> bool { (self.sprite_flags & SPRITE_PRIORITY) != 0 }
     fn flip_vertical(&self) -> bool { (self.sprite_flags & SPRITE_FLIP_V) != 0 }
@@ -112,7 +110,9 @@ impl PPU {
                     let mut i = 0;
                     for index in 0..40 {
                         let sprite = read_oam_sprite(mem, index);
-                        if sprite.adjusted_x() > 0 && ly >= sprite.adjusted_y() && ly < sprite.adjusted_y() + sprite_height {
+                        let sprite_y_end = sprite.screen_y() + sprite_height;
+                        let ly = ly as i16;
+                        if sprite.x != 0 && ly >= sprite.screen_y() && ly < sprite_y_end {
                             self.sprite_buffer[i] = sprite;
                             i += 1;
                             if i >= 10 { break }
@@ -168,25 +168,25 @@ impl PPU {
 
             let mut sprite = None;
             if mem.reg().lcd_control.obj_enable() {
-                sprite = self.sprite_buffer.iter()
-                    .filter(|sprite| sprite.x <= x + 8 && x + 8 < sprite.x + 8)
-                    .next();
+                sprite = self.sprite_buffer.iter().find(|sprite| {
+                    let sprite_x = sprite.screen_x();
+                    let x = x as i16;
+                    x >= sprite_x && x < sprite_x + 8
+                });
             }
             let (sprite_pixel, bg_to_object_priority)  = if let Some(sprite) = sprite {
                 let sprite_height = if mem.reg().lcd_control.obj_double_height() { 16 } else { 8 };
                 let tile_id = sprite_tile_id(sprite.tile_id, sprite_height as u8) as u16;
                 let sprite_tile_addr = (tile_id * 16) + 0x8000;
-                dbg!(sprite, ly, x);
-                let mut py: u16 = (ly - sprite.adjusted_y()).into();
-                let mut px: u16 = (x - sprite.adjusted_x()).into();
-                dbg!(px, py);
-                if sprite.flip_horizontal() { px = 7 - px; }
-                if sprite.flip_vertical() { py = sprite_height - py; }
-                let line1 = mem.read8(sprite_tile_addr + (2 * py));
-                let line2 = mem.read8(sprite_tile_addr + (2 * py + 1));
+                let mut sprite_y = (ly as i16 - sprite.screen_y()) as u16;
+                let mut sprite_x = (x as i16 - sprite.screen_x()) as u16;
+                if sprite.flip_horizontal() { sprite_x = 7 - sprite_x; }
+                if sprite.flip_vertical() { sprite_y = sprite_height - sprite_y; }
+                let line1 = mem.read8(sprite_tile_addr + (2 * sprite_y));
+                let line2 = mem.read8(sprite_tile_addr + (2 * sprite_y + 1));
                 // let sprite_pixel = (line1.rotate_left(px as u32) & 1) | (line2.rotate_left(px as u32 + 1) & 2);
-                let mut sprite_pixel = (line1 >> (7 - px)) & 1;
-                sprite_pixel |= if line2 & (0x80 >> px) != 0 { 2 } else { 0 };
+                let mut sprite_pixel = (line1 >> (7 - sprite_x)) & 1;
+                sprite_pixel |= if line2 & (0x80 >> sprite_x) != 0 { 2 } else { 0 };
                 (sprite_pixel, sprite.bg_to_object_priority())
             } else {
                 (0, false)
@@ -225,7 +225,7 @@ impl PPU {
 
 #[cfg(test)]
 mod tests {
-    use super::{read_oam_sprite, sprite_tile_id, PPU};
+    use super::{read_oam_sprite, sprite_tile_id, OAMSprite, PPU};
     use crate::memory::Memory;
     use crate::memory_types::PPUMode;
 
@@ -245,6 +245,33 @@ mod tests {
     fn sprite_tile_id_only_aligns_16_pixel_sprites() {
         assert_eq!(sprite_tile_id(0x07, 8), 0x07);
         assert_eq!(sprite_tile_id(0x07, 16), 0x06);
+    }
+
+    #[test]
+    fn sprite_coordinates_allow_partial_offscreen_positions() {
+        let sprite = OAMSprite { x: 1, y: 1, ..Default::default() };
+
+        assert_eq!(sprite.screen_x(), -7);
+        assert_eq!(sprite.screen_y(), -15);
+    }
+
+    #[test]
+    fn oam_scan_keeps_partially_visible_left_edge_sprites() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        let mut buffer = vec![0; 256 * 144 * 2];
+        let mut ppu = PPU::new();
+        memory.reg_mut().lcd_y = 0;
+        memory.reg_mut().sprites[..8].copy_from_slice(&[
+            16, 0, 1, 0,
+            16, 1, 2, 0,
+        ]);
+        ppu.mode = PPUMode::OAMScan;
+
+        ppu.step(&mut memory, &mut buffer, 80);
+
+        assert_eq!(ppu.sprite_buffer[0].x, 1);
+        assert_eq!(ppu.sprite_buffer[0].tile_id, 2);
     }
 
     #[test]
