@@ -21,6 +21,7 @@ impl Memory<'_> {
             memory_bank: 1,
         };
         memory.reg_mut().lcd_stat.set_ppu_mode(PPUMode::VBlank);
+        memory.reg_mut().lcd_stat.set_lyc_equal(true);
         memory
     }
 
@@ -62,11 +63,6 @@ impl Memory<'_> {
             0xe000..=0xfdff => {
                 // echo ram, mirror of $c000–$ddff
                 self.data[(address - 0x1000) as usize]
-            },
-            0xff41 => {
-                // TODO
-                // 0x80 | if self.reg().lcd_y == self.reg().lcd_yc { 2 } else { 0 }
-                self.reg().lcd_stat.bits() | if self.reg().lcd_y == self.reg().lcd_yc { 2 } else { 0 }
             },
             0xfe00..=0xffff => {
                 self.data[address as usize]

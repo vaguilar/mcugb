@@ -72,7 +72,7 @@ impl PPU {
                 if self.clock >= 204 {
                     self.clock -= 204;
                     let lcd_y = mem.reg().lcd_y.wrapping_add(1);
-                    mem.reg_mut().lcd_y = lcd_y;
+                    Self::set_ly(mem, lcd_y);
 
                     if mem.reg().lcd_y == 144 {
                         mem.reg_mut().lcd_stat.set_ppu_mode(PPUMode::VBlank);
@@ -87,11 +87,12 @@ impl PPU {
                 if self.clock >= 456 {
                     self.clock -= 456;
                     let lcd_y = mem.reg().lcd_y.wrapping_add(1);
-                    mem.reg_mut().lcd_y = lcd_y;
 
-                    if mem.reg().lcd_y > 153 {
-                        mem.reg_mut().lcd_y = 0;
+                    if lcd_y > 153 {
+                        Self::set_ly(mem, 0);
                         mem.reg_mut().lcd_stat.set_ppu_mode(PPUMode::OAMScan);
+                    } else {
+                        Self::set_ly(mem, lcd_y);
                     }
                 }
             }
@@ -135,6 +136,13 @@ impl PPU {
             }
         }
         (redraw, vblank)
+    }
+
+    fn set_ly(mem: &mut Memory, ly: u8) {
+        let lyc = mem.reg().lcd_yc;
+        let registers = mem.reg_mut();
+        registers.lcd_y = ly;
+        registers.lcd_stat.set_lyc_equal(ly == lyc);
     }
 
     fn draw_scanline(&mut self, mem: &mut Memory, buffer: &mut [u8]) {
@@ -262,6 +270,33 @@ mod tests {
 
         ppu.step(&mut memory, &mut buffer, 204);
         assert_eq!(memory.reg().lcd_stat.ppu_mode(), PPUMode::OAMScan);
+    }
+
+    #[test]
+    fn lyc_coincidence_tracks_scanline_changes() {
+        const LYC_EQUAL: u8 = 1 << 2;
+
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        let mut buffer = vec![0; 256 * 144 * 2];
+        let mut ppu = PPU::new();
+
+        memory.reg_mut().lcd_stat.set_ppu_mode(PPUMode::HBlank);
+        memory.reg_mut().lcd_y = 40;
+        memory.reg_mut().lcd_yc = 41;
+        ppu.step(&mut memory, &mut buffer, 204);
+        assert_ne!(memory.read8(0xff41) & LYC_EQUAL, 0);
+
+        memory.reg_mut().lcd_stat.set_ppu_mode(PPUMode::HBlank);
+        ppu.step(&mut memory, &mut buffer, 204);
+        assert_eq!(memory.read8(0xff41) & LYC_EQUAL, 0);
+
+        memory.reg_mut().lcd_stat.set_ppu_mode(PPUMode::VBlank);
+        memory.reg_mut().lcd_y = 153;
+        memory.reg_mut().lcd_yc = 0;
+        ppu.step(&mut memory, &mut buffer, 456);
+        assert_eq!(memory.reg().lcd_y, 0);
+        assert_ne!(memory.read8(0xff41) & LYC_EQUAL, 0);
     }
 
     #[test]

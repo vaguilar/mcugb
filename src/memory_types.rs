@@ -95,6 +95,7 @@ pub struct LCDStatus(u8);
 impl LCDStatus {
     const PPU_MODE: u8 = 0b11;
 
+    #[allow(dead_code, reason = "used by tests and reserved for raw STAT access")]
     pub const fn bits(self) -> u8 {
         self.0
     }
@@ -114,7 +115,6 @@ impl LCDStatus {
         self.0 = (self.0 & !Self::PPU_MODE) | mode as u8;
     }
 
-    #[expect(dead_code, reason = "used when LY/LYC coincidence updates are implemented")]
     pub fn set_lyc_equal(&mut self, equal: bool) {
         const LYC_EQUAL: u8 = 1 << 2;
         if equal {
