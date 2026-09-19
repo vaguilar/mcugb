@@ -165,8 +165,9 @@ impl PPU {
             let tile_id = mem.read8(tile_ptr + (bg_y * 32 + bg_x));
             let bg_tile_addr = self.get_tile_addr(mem, tile_id);
             let line1 = mem.read8(bg_tile_addr + (2 * py));
-            let line2 = mem.read8(bg_tile_addr + (2 * py + 1)).rotate_left(1);
-            let bg_pixel = (line1.rotate_left(px as u32) & 1) | (line2.rotate_left(px as u32 + 1) & 2);
+            let line2 = mem.read8(bg_tile_addr + (2 * py + 1));
+            let shift = 7 - px;
+            let bg_pixel = ((line1 >> shift) & 1) | (((line2 >> shift) & 1) << 1);
 
             let mut sprite = None;
             if mem.reg().lcd_control.obj_enable() {
@@ -229,7 +230,7 @@ impl PPU {
 mod tests {
     use super::{read_oam_sprite, sprite_tile_id, OAMSprite, PPU};
     use crate::memory::Memory;
-    use crate::memory_types::PPUMode;
+    use crate::memory_types::{LCDControl, PPUMode};
 
     #[test]
     fn oam_scan_reads_sprites_from_register_storage() {
@@ -297,6 +298,48 @@ mod tests {
         ppu.step(&mut memory, &mut buffer, 456);
         assert_eq!(memory.reg().lcd_y, 0);
         assert_ne!(memory.read8(0xff41) & LYC_EQUAL, 0);
+    }
+
+    #[test]
+    fn background_decodes_known_tile_row() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        let mut buffer = vec![0; 256 * 144 * 2];
+        let mut ppu = PPU::new();
+        memory.reg_mut().lcd_control = LCDControl::from_bits(1 << 4);
+        memory.write8(0x9800, 0);
+        memory.write8(0x8000, 0b1010_0000);
+        memory.write8(0x8001, 0b0110_0000);
+
+        ppu.draw_scanline(&mut memory, &mut buffer);
+
+        for (x, color) in [1, 2, 3, 0].iter().copied().enumerate() {
+            let (top, bottom) = super::COLORS[color];
+            assert_eq!(&buffer[x * 2..x * 2 + 2], &[bottom, top]);
+        }
+    }
+
+    #[test]
+    fn background_scroll_x_wraps_between_tiles() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        let mut buffer = vec![0; 256 * 144 * 2];
+        let mut ppu = PPU::new();
+        memory.reg_mut().lcd_control = LCDControl::from_bits(1 << 4);
+        memory.reg_mut().lcd_scx = 255;
+        memory.write8(0x981f, 1);
+        memory.write8(0x9800, 2);
+        memory.write8(0x8010, 0b0000_0001);
+        memory.write8(0x8011, 0);
+        memory.write8(0x8020, 0);
+        memory.write8(0x8021, 0b1000_0000);
+
+        ppu.draw_scanline(&mut memory, &mut buffer);
+
+        let (top, bottom) = super::COLORS[1];
+        assert_eq!(&buffer[0..2], &[bottom, top]);
+        let (top, bottom) = super::COLORS[2];
+        assert_eq!(&buffer[2..4], &[bottom, top]);
     }
 
     #[test]
