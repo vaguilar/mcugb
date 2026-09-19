@@ -74,6 +74,21 @@ impl OAMSprite {
     fn flip_horizontal(&self) -> bool { (self.sprite_flags & SPRITE_FLIP_H) != 0 }
 }
 
+fn read_oam_sprite(mem: &Memory, index: usize) -> OAMSprite {
+    let start = index * 4;
+    let bytes = &mem.reg().sprites[start..start + 4];
+    OAMSprite {
+        y: bytes[0],
+        x: bytes[1],
+        tile_id: bytes[2],
+        sprite_flags: bytes[3],
+    }
+}
+
+fn sprite_tile_id(tile_id: u8, sprite_height: u8) -> u8 {
+    if sprite_height == 16 { tile_id & 0xfe } else { tile_id }
+}
+
 impl PPU {
     pub fn new() -> PPU {
         PPU { clock: 0, mode: PPUMode::VBlank, sprite_buffer: Default::default() }
@@ -124,15 +139,13 @@ impl PPU {
                     // during this mode, we'll search all sprites ($fe00-$fe9f)
                     // that overlap with this scanline, and store them in our
                     // sprite buffer
-                    let sprites = unsafe {
-                        std::mem::transmute::<&[u8], &[OAMSprite]>(&mem.data[0xfe00..0xfe9f])
-                    };
                     let ly = mem.reg().lcd_y;
                     let sprite_height = if mem.reg().lcd_control & LCDC_SPRITE_DOUBLE_HEIGHT != 0 { 16 } else { 8 };
                     let mut i = 0;
-                    for sprite in sprites {
+                    for index in 0..40 {
+                        let sprite = read_oam_sprite(mem, index);
                         if sprite.adjusted_x() > 0 && ly >= sprite.adjusted_y() && ly < sprite.adjusted_y() + sprite_height {
-                            self.sprite_buffer[i] = sprite.clone();
+                            self.sprite_buffer[i] = sprite;
                             i += 1;
                             if i >= 10 { break }
                         }
@@ -195,7 +208,7 @@ impl PPU {
             }
             let (sprite_pixel, bg_to_object_priority)  = if let Some(sprite) = sprite {
                 let sprite_height = if mem.reg().lcd_control & LCDC_SPRITE_DOUBLE_HEIGHT != 0 { 16 } else { 8 };
-                let tile_id = (sprite.tile_id as u16) & 0xff;
+                let tile_id = sprite_tile_id(sprite.tile_id, sprite_height as u8) as u16;
                 let sprite_tile_addr = (tile_id * 16) + 0x8000;
                 dbg!(sprite, ly, x);
                 let mut py: u16 = (ly - sprite.adjusted_y()).into();
@@ -345,12 +358,38 @@ impl PPU {
                 if x == 0 && y == 0 {
                     continue;
                 }
-                self.draw_sprite(mem, id * 16 + 0x8000, buffer, x, y, flags);
-
                 if mem.reg().lcd_control & LCDC_SPRITE_DOUBLE_HEIGHT != 0 {
-                    self.draw_sprite(mem, id * 16 + 0x8000 + 16, buffer, x, y + 8, flags);
+                    let tile_id = sprite_tile_id(id as u8, 16) as u16;
+                    self.draw_sprite(mem, tile_id * 16 + 0x8000, buffer, x, y, flags);
+                    self.draw_sprite(mem, tile_id * 16 + 0x8000 + 16, buffer, x, y + 8, flags);
+                } else {
+                    self.draw_sprite(mem, id * 16 + 0x8000, buffer, x, y, flags);
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{read_oam_sprite, sprite_tile_id};
+    use crate::memory::Memory;
+
+    #[test]
+    fn oam_scan_reads_sprites_from_register_storage() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        memory.reg_mut().sprites[4..8].copy_from_slice(&[0x20, 0x30, 0x07, 0x80]);
+
+        let sprite = read_oam_sprite(&memory, 1);
+
+        assert_eq!((sprite.y, sprite.x, sprite.tile_id, sprite.sprite_flags),
+                   (0x20, 0x30, 0x07, 0x80));
+    }
+
+    #[test]
+    fn sprite_tile_id_only_aligns_16_pixel_sprites() {
+        assert_eq!(sprite_tile_id(0x07, 8), 0x07);
+        assert_eq!(sprite_tile_id(0x07, 16), 0x06);
     }
 }
