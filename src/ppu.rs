@@ -211,7 +211,7 @@ impl PPU {
                 let mut sprite_y = (ly as i16 - sprite.screen_y()) as u16;
                 let mut sprite_x = (x as i16 - sprite.screen_x()) as u16;
                 if sprite.flip_horizontal() { sprite_x = 7 - sprite_x; }
-                if sprite.flip_vertical() { sprite_y = sprite_height - sprite_y; }
+                if sprite.flip_vertical() { sprite_y = sprite_height - 1 - sprite_y; }
                 let line1 = mem.read8(sprite_tile_addr + (2 * sprite_y));
                 let line2 = mem.read8(sprite_tile_addr + (2 * sprite_y + 1));
                 // let sprite_pixel = (line1.rotate_left(px as u32) & 1) | (line2.rotate_left(px as u32 + 1) & 2);
@@ -430,6 +430,46 @@ mod tests {
 
         assert_pixel_color(&buffer, 0, 0, 2);
         assert_pixel_color(&buffer, 159, 0, 2);
+    }
+
+    #[test]
+    fn vertically_flipped_8_pixel_sprite_uses_its_last_row_first() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        let mut buffer = vec![0; 256 * 144 * 2];
+        let mut ppu = PPU::new();
+        memory.reg_mut().lcd_control = LCDControl::from_bits(1 << 1);
+        memory.write8(0x800e, 0b1000_0000);
+        ppu.sprite_buffer[0] = OAMSprite {
+            y: 16,
+            x: 8,
+            tile_id: 0,
+            sprite_flags: super::SPRITE_FLIP_V,
+        };
+
+        ppu.draw_scanline(&mut memory, &mut buffer);
+
+        assert_pixel_color(&buffer, 0, 0, 1);
+    }
+
+    #[test]
+    fn vertically_flipped_16_pixel_sprite_uses_its_second_tile_first() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        let mut buffer = vec![0; 256 * 144 * 2];
+        let mut ppu = PPU::new();
+        memory.reg_mut().lcd_control = LCDControl::from_bits((1 << 2) | (1 << 1));
+        memory.write8(0x801e, 0b1000_0000);
+        ppu.sprite_buffer[0] = OAMSprite {
+            y: 16,
+            x: 8,
+            tile_id: 1,
+            sprite_flags: super::SPRITE_FLIP_V,
+        };
+
+        ppu.draw_scanline(&mut memory, &mut buffer);
+
+        assert_pixel_color(&buffer, 0, 0, 1);
     }
 
     #[test]
