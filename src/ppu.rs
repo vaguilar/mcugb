@@ -150,19 +150,46 @@ impl PPU {
         let scx = mem.reg().lcd_scx;
         let scy = mem.reg().lcd_scy;
         let bg_y: u16 = (ly.wrapping_add(scy) / 8).into();
-        let py = (ly.wrapping_add(scy) % 8) as u16;
+        let bg_py = (ly.wrapping_add(scy) % 8) as u16;
 
-        let tile_ptr: u16 = if mem.reg().lcd_control.bg_tile_map() {
+        let bg_tile_map: u16 = if mem.reg().lcd_control.bg_tile_map() {
             0x9c00
         } else {
             0x9800
         };
+        let window_tile_map: u16 = if mem.reg().lcd_control.window_tile_map_data_area() {
+            0x9c00
+        } else {
+            0x9800
+        };
+        let window_start_x = mem.reg().wx as i16 - 7;
+        let window_start_y = mem.reg().wy;
+        let window_line = ly.wrapping_sub(window_start_y);
+        let window_active = mem.reg().lcd_control.window_enable() && ly >= window_start_y;
 
         for x in 0..160u8 {
-            let bg_x: u16 = (x.wrapping_add(scx) / 8).into();
-            let px = x.wrapping_add(scx) % 8;
-            // dbg!(bg_x, bg_y);
-            let tile_id = mem.read8(tile_ptr + (bg_y * 32 + bg_x));
+            let window_x = x as i16 - window_start_x;
+            let use_window = window_active && window_x >= 0;
+            let (tile_map, tile_x, tile_y, px, py) = if use_window {
+                let window_x = window_x as u16;
+                (
+                    window_tile_map,
+                    window_x / 8,
+                    window_line as u16 / 8,
+                    (window_x % 8) as u8,
+                    window_line as u16 % 8,
+                )
+            } else {
+                let background_x = x.wrapping_add(scx);
+                (
+                    bg_tile_map,
+                    (background_x / 8) as u16,
+                    bg_y,
+                    background_x % 8,
+                    bg_py,
+                )
+            };
+            let tile_id = mem.read8(tile_map + (tile_y * 32 + tile_x));
             let bg_tile_addr = self.get_tile_addr(mem, tile_id);
             let line1 = mem.read8(bg_tile_addr + (2 * py));
             let line2 = mem.read8(bg_tile_addr + (2 * py + 1));
@@ -231,6 +258,12 @@ mod tests {
     use super::{read_oam_sprite, sprite_tile_id, OAMSprite, PPU};
     use crate::memory::Memory;
     use crate::memory_types::{LCDControl, PPUMode};
+
+    fn assert_pixel_color(buffer: &[u8], x: usize, y: usize, color: usize) {
+        let offset = ((y * 256) + x) * 2;
+        let (top, bottom) = super::COLORS[color];
+        assert_eq!(&buffer[offset..offset + 2], &[bottom, top]);
+    }
 
     #[test]
     fn oam_scan_reads_sprites_from_register_storage() {
@@ -340,6 +373,63 @@ mod tests {
         assert_eq!(&buffer[0..2], &[bottom, top]);
         let (top, bottom) = super::COLORS[2];
         assert_eq!(&buffer[2..4], &[bottom, top]);
+    }
+
+    #[test]
+    fn window_with_wx_below_seven_starts_offscreen() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        let mut buffer = vec![0; 256 * 144 * 2];
+        let mut ppu = PPU::new();
+        memory.reg_mut().lcd_control = LCDControl::from_bits(0b0111_0000);
+        memory.reg_mut().wx = 0;
+        memory.write8(0x9c00, 1);
+        memory.write8(0x8010, 0b0000_0001);
+
+        ppu.draw_scanline(&mut memory, &mut buffer);
+
+        assert_pixel_color(&buffer, 0, 0, 1);
+        assert_pixel_color(&buffer, 1, 0, 0);
+    }
+
+    #[test]
+    fn window_at_wx_seven_starts_at_wy() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        let mut buffer = vec![0; 256 * 144 * 2];
+        let mut ppu = PPU::new();
+        memory.reg_mut().lcd_control = LCDControl::from_bits(0b0111_0000);
+        memory.reg_mut().wx = 7;
+        memory.reg_mut().wy = 5;
+        memory.write8(0x9c00, 1);
+        memory.write8(0x8010, 0b1000_0000);
+
+        memory.reg_mut().lcd_y = 4;
+        ppu.draw_scanline(&mut memory, &mut buffer);
+        assert_pixel_color(&buffer, 0, 4, 0);
+
+        memory.reg_mut().lcd_y = 5;
+        ppu.draw_scanline(&mut memory, &mut buffer);
+        assert_pixel_color(&buffer, 0, 5, 1);
+    }
+
+    #[test]
+    fn window_beyond_visible_screen_does_not_render() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        let mut buffer = vec![0; 256 * 144 * 2];
+        let mut ppu = PPU::new();
+        memory.reg_mut().lcd_control = LCDControl::from_bits(0b0111_0000);
+        memory.reg_mut().wx = 167;
+        memory.write8(0x9800, 0);
+        memory.write8(0x9c00, 1);
+        memory.write8(0x8001, 0xff);
+        memory.write8(0x8010, 0xff);
+
+        ppu.draw_scanline(&mut memory, &mut buffer);
+
+        assert_pixel_color(&buffer, 0, 0, 2);
+        assert_pixel_color(&buffer, 159, 0, 2);
     }
 
     #[test]

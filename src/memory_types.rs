@@ -63,12 +63,10 @@ impl LCDControl {
         self.0 & Self::BG_AND_WINDOW_TILE_DATA_AREA != 0
     }
 
-    #[allow(dead_code, reason = "used by tests and planned window rendering")]
     pub const fn window_enable(self) -> bool {
         self.0 & Self::WINDOW_ENABLE != 0
     }
 
-    #[expect(dead_code, reason = "used when window rendering is implemented")]
     pub const fn window_tile_map_data_area(self) -> bool {
         self.0 & Self::WINDOW_TILE_MAP_DATA_AREA != 0
     }
