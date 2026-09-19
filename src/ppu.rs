@@ -22,7 +22,6 @@ static COLORS: [(u8, u8); 4] = [(0xe7, 0x9c), (0x97, 0x08), (0x44, 0x31), (0x31,
 
 pub struct PPU {
     pub clock: u16,
-    mode: PPUMode,
     sprite_buffer: [OAMSprite; 10],
 }
 
@@ -60,7 +59,7 @@ fn sprite_tile_id(tile_id: u8, sprite_height: u8) -> u8 {
 
 impl PPU {
     pub fn new() -> PPU {
-        PPU { clock: 0, mode: PPUMode::VBlank, sprite_buffer: Default::default() }
+        PPU { clock: 0, sprite_buffer: Default::default() }
     }
 
     pub fn step(&mut self, mem: &mut Memory, buffer: &mut [u8], cycles: u16) -> (bool, bool) {
@@ -68,7 +67,7 @@ impl PPU {
         let mut vblank = false;
         self.clock += cycles;
 
-        match self.mode {
+        match mem.reg().lcd_stat.ppu_mode() {
             PPUMode::HBlank => {
                 if self.clock >= 204 {
                     self.clock -= 204;
@@ -76,12 +75,10 @@ impl PPU {
                     mem.reg_mut().lcd_y = lcd_y;
 
                     if mem.reg().lcd_y == 144 {
-                        self.mode = PPUMode::VBlank;
                         mem.reg_mut().lcd_stat.set_ppu_mode(PPUMode::VBlank);
                         vblank = true;
                         redraw = true;
                     } else {
-                        self.mode = PPUMode::OAMScan;
                         mem.reg_mut().lcd_stat.set_ppu_mode(PPUMode::OAMScan);
                     }
                 }
@@ -94,7 +91,6 @@ impl PPU {
 
                     if mem.reg().lcd_y > 153 {
                         mem.reg_mut().lcd_y = 0;
-                        self.mode = PPUMode::OAMScan;
                         mem.reg_mut().lcd_stat.set_ppu_mode(PPUMode::OAMScan);
                     }
                 }
@@ -126,7 +122,6 @@ impl PPU {
                     //     .collect::<Vec<OAMSprite>>();
 
                     self.clock -= 80;
-                    self.mode = PPUMode::Drawing;
                     mem.reg_mut().lcd_stat.set_ppu_mode(PPUMode::Drawing);
                 }
             }
@@ -134,7 +129,6 @@ impl PPU {
                 // VRAM read mode, pixel transfer, etc
                 if self.clock >= 172 {
                     self.clock -= 172;
-                    self.mode = PPUMode::HBlank;
                     mem.reg_mut().lcd_stat.set_ppu_mode(PPUMode::HBlank);
                     self.draw_scanline(mem, buffer);
                 }
@@ -248,6 +242,29 @@ mod tests {
     }
 
     #[test]
+    fn ppu_mode_transitions_are_stored_in_stat() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        let mut buffer = vec![0; 256 * 144 * 2];
+        let mut ppu = PPU::new();
+
+        assert_eq!(memory.reg().lcd_stat.ppu_mode(), PPUMode::VBlank);
+
+        memory.reg_mut().lcd_y = 153;
+        ppu.step(&mut memory, &mut buffer, 456);
+        assert_eq!(memory.reg().lcd_stat.ppu_mode(), PPUMode::OAMScan);
+
+        ppu.step(&mut memory, &mut buffer, 80);
+        assert_eq!(memory.reg().lcd_stat.ppu_mode(), PPUMode::Drawing);
+
+        ppu.step(&mut memory, &mut buffer, 172);
+        assert_eq!(memory.reg().lcd_stat.ppu_mode(), PPUMode::HBlank);
+
+        ppu.step(&mut memory, &mut buffer, 204);
+        assert_eq!(memory.reg().lcd_stat.ppu_mode(), PPUMode::OAMScan);
+    }
+
+    #[test]
     fn sprite_coordinates_allow_partial_offscreen_positions() {
         let sprite = OAMSprite { x: 1, y: 1, ..Default::default() };
 
@@ -266,7 +283,7 @@ mod tests {
             16, 0, 1, 0,
             16, 1, 2, 0,
         ]);
-        ppu.mode = PPUMode::OAMScan;
+        memory.reg_mut().lcd_stat.set_ppu_mode(PPUMode::OAMScan);
 
         ppu.step(&mut memory, &mut buffer, 80);
 
@@ -281,7 +298,7 @@ mod tests {
         let mut buffer = vec![0; 256 * 144 * 2];
         let mut ppu = PPU::new();
 
-        ppu.mode = PPUMode::HBlank;
+        memory.reg_mut().lcd_stat.set_ppu_mode(PPUMode::HBlank);
         memory.reg_mut().lcd_y = 142;
         let (redraw, vblank) = ppu.step(&mut memory, &mut buffer, 204);
 
@@ -289,7 +306,7 @@ mod tests {
         assert!(!redraw);
         assert!(!vblank);
 
-        ppu.mode = PPUMode::HBlank;
+        memory.reg_mut().lcd_stat.set_ppu_mode(PPUMode::HBlank);
         let (redraw, vblank) = ppu.step(&mut memory, &mut buffer, 204);
 
         assert_eq!(memory.reg().lcd_y, 144);

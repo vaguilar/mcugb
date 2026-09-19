@@ -1,5 +1,5 @@
 use crate::rom::{ROM, ROMSize};
-use crate::memory_types::{IORegisters, Joypad};
+use crate::memory_types::{IORegisters, Joypad, PPUMode};
 
 pub struct Memory<'a> {
     pub rom: ROM<'a>,
@@ -14,12 +14,14 @@ const _: [(); 1] = [(); std::mem::align_of::<IORegisters>()];
 
 impl Memory<'_> {
     pub fn with_rom_buffer(rom_buffer: &[u8]) -> Memory<'_> {
-        Memory {
+        let mut memory = Memory {
             rom: ROM::new(rom_buffer),
             data: [0; 65536],
             joypad_states: [0, 0],
             memory_bank: 1,
-        }
+        };
+        memory.reg_mut().lcd_stat.set_ppu_mode(PPUMode::VBlank);
+        memory
     }
 
     pub fn reg(&self) -> &IORegisters {
