@@ -1,13 +1,6 @@
 use crate::memory::Memory;
 
 #[inline]
-fn set_flag_if(flags: &mut u8, mask: u8, condition: bool) {
-    if condition {
-        *flags |= mask;
-    } 
-}
-
-#[inline]
 fn set_flag(flags: &mut u8, mask: u8, set: bool) {
     if set {
         *flags |= mask;
@@ -37,9 +30,12 @@ pub struct CPU {
     pub sp: u16,
     pub reg: Registers,
 
+    #[expect(dead_code, reason = "reserved for HALT instruction state")]
     pub halt: bool,
     pub interrupts: bool,
+    #[expect(dead_code, reason = "reserved while interrupt state handling is completed")]
     pub interrupt_enable: bool,
+    #[expect(dead_code, reason = "reserved while interrupt state handling is completed")]
     pub interrupt_flag: bool,
     pub timer_cycles: u16,
     pub divider_cycles: u16,
@@ -267,8 +263,6 @@ impl CPU {
 
         let x = (0b11000000 & op) >> 6;
         let y = (0b00111000 & op) >> 3;
-        let p = y >> 2;
-        let q = y & 1;
         let z = 0b00000111 & op;
 
         let new_cycles: Option<u16> = match (x, y, z) {
@@ -753,7 +747,6 @@ impl CPU {
             }
             0x40 => {
                 // ld b, b
-                self.reg.b = self.reg.b;
                 4
             }
             0x41 => {
@@ -798,7 +791,6 @@ impl CPU {
             }
             0x49 => {
                 // ld c, c
-                self.reg.c = self.reg.c;
                 4
             }
             0x4a => {
@@ -843,7 +835,6 @@ impl CPU {
             }
             0x52 => {
                 // ld d, d
-                self.reg.d = self.reg.d;
                 4
             }
             0x53 => {
@@ -888,7 +879,6 @@ impl CPU {
             }
             0x5b => {
                 // ld e, e
-                self.reg.e = self.reg.e;
                 4
             }
             0x5c => {
@@ -933,7 +923,6 @@ impl CPU {
             }
             0x64 => {
                 // ld h, h
-                self.reg.h = self.reg.h;
                 4
             }
             0x65 => {
@@ -978,7 +967,6 @@ impl CPU {
             }
             0x6d => {
                 // ld l, l
-                self.reg.l = self.reg.l;
                 4
             }
             0x6e => {
@@ -1068,7 +1056,6 @@ impl CPU {
             }
             0x7f => {
                 // ld a, a
-                self.reg.a = self.reg.a;
                 4
             }
             0x80 => {

@@ -37,10 +37,12 @@ impl LCDControl {
         Self(bits)
     }
 
+    #[expect(dead_code, reason = "raw register access is useful for diagnostics and serialization")]
     pub const fn bits(self) -> u8 {
         self.0
     }
 
+    #[expect(dead_code, reason = "used when DMG background priority behavior is implemented")]
     pub const fn bg_and_window_enable_priority(self) -> bool {
         self.0 & Self::BG_AND_WINDOW_ENABLE_PRIORITY != 0
     }
@@ -61,14 +63,17 @@ impl LCDControl {
         self.0 & Self::BG_AND_WINDOW_TILE_DATA_AREA != 0
     }
 
+    #[allow(dead_code, reason = "used by tests and planned window rendering")]
     pub const fn window_enable(self) -> bool {
         self.0 & Self::WINDOW_ENABLE != 0
     }
 
+    #[expect(dead_code, reason = "used when window rendering is implemented")]
     pub const fn window_tile_map_data_area(self) -> bool {
         self.0 & Self::WINDOW_TILE_MAP_DATA_AREA != 0
     }
 
+    #[allow(dead_code, reason = "used by tests and planned LCD enable behavior")]
     pub const fn lcd_ppu_enable(self) -> bool {
         self.0 & Self::LCD_PPU_ENABLE != 0
     }
@@ -94,6 +99,7 @@ impl LCDStatus {
         self.0
     }
 
+    #[allow(dead_code, reason = "used by tests and planned STAT mode ownership")]
     pub fn ppu_mode(self) -> PPUMode {
         match self.0 & Self::PPU_MODE {
             0 => PPUMode::HBlank,
@@ -108,6 +114,7 @@ impl LCDStatus {
         self.0 = (self.0 & !Self::PPU_MODE) | mode as u8;
     }
 
+    #[expect(dead_code, reason = "used when LY/LYC coincidence updates are implemented")]
     pub fn set_lyc_equal(&mut self, equal: bool) {
         const LYC_EQUAL: u8 = 1 << 2;
         if equal {
