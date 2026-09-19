@@ -4,6 +4,7 @@ mod cpu;
 mod gb;
 mod ppu;
 mod memory;
+mod memory_types;
 mod rom;
 
 use clap::Parser;

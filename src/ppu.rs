@@ -1,17 +1,7 @@
 use crate::memory::Memory;
+use crate::memory_types::PPUMode;
 use std::convert::TryInto;
 use bitmask_enum::bitmask;
-
-#[bitmask(u8)]
-enum LCDControl {
-    ShowBackground = 1,
-    ShowSprite,
-    SpriteDoubleHeight,
-    BackgroundTileMapSelect,
-    BackgroundTileData,
-    WindowOn,
-    WindowTileMapSelect,
-}
 
 #[bitmask(u8)]
 enum SpriteFlags {
@@ -25,29 +15,11 @@ enum SpriteFlags {
     BGPriority = 1 << 7, // if set, bg has priority over this sprite for bg values 1-3
 }
 
-// static LCDC_ON: u8 = 1 << 7;
-static LCDC_WINDOW_TILE_MAP_SELECT: u8 = 1 << 6;
-static LCDC_WINDOW_ON: u8 = 1 << 5;
-static LCDC_BG_TILE_DATA: u8 = 1 << 4;
-static LCDC_BG_TILE_MAP_SELECT: u8 = 1 << 3;
-static LCDC_SPRITE_DOUBLE_HEIGHT: u8 = 1 << 2;
-static LCDC_SHOW_SPRITES: u8 = 1 << 1;
-// static LCDC_SHOW_BG: u8 = 1 << 0;
-
-
 static SPRITE_PRIORITY: u8 = 1 << 7;
 static SPRITE_FLIP_V: u8 = 1 << 6;
 static SPRITE_FLIP_H: u8 = 1 << 5;
 
 static COLORS: [(u8, u8); 4] = [(0xe7, 0x9c), (0x97, 0x08), (0x44, 0x31), (0x31, 0x6a)];
-
-#[repr(u8)]
-enum PPUMode {
-    HBlank  = 0,
-    VBlank  = 1,
-    OAMScan = 2,
-    Drawing = 3, // VRAM read mode?
-}
 
 pub struct PPU {
     pub clock: u16,
@@ -108,14 +80,12 @@ impl PPU {
 
                     if mem.reg().lcd_y == 143 {
                         self.mode = PPUMode::VBlank;
-                        let lcd_stat = (mem.reg().lcd_stat & 0xfc) | (PPUMode::VBlank as u8);
-                        mem.reg_mut().lcd_stat = lcd_stat;
+                        mem.reg_mut().lcd_stat.set_ppu_mode(PPUMode::VBlank);
                         vblank = true;
                         redraw = true;
                     } else {
                         self.mode = PPUMode::OAMScan;
-                        let lcd_stat = (mem.reg().lcd_stat & 0xfc) | (PPUMode::OAMScan as u8);
-                        mem.reg_mut().lcd_stat = lcd_stat;
+                        mem.reg_mut().lcd_stat.set_ppu_mode(PPUMode::OAMScan);
                     }
                 }
             }
@@ -128,8 +98,7 @@ impl PPU {
                     if mem.reg().lcd_y > 153 {
                         mem.reg_mut().lcd_y = 0;
                         self.mode = PPUMode::OAMScan;
-                        let lcd_stat = (mem.reg().lcd_stat & 0xfc) | (PPUMode::OAMScan as u8);
-                        mem.reg_mut().lcd_stat = lcd_stat;
+                        mem.reg_mut().lcd_stat.set_ppu_mode(PPUMode::OAMScan);
                     }
                 }
             }
@@ -140,7 +109,7 @@ impl PPU {
                     // that overlap with this scanline, and store them in our
                     // sprite buffer
                     let ly = mem.reg().lcd_y;
-                    let sprite_height = if mem.reg().lcd_control & LCDC_SPRITE_DOUBLE_HEIGHT != 0 { 16 } else { 8 };
+                    let sprite_height = if mem.reg().lcd_control.obj_double_height() { 16 } else { 8 };
                     let mut i = 0;
                     for index in 0..40 {
                         let sprite = read_oam_sprite(mem, index);
@@ -159,8 +128,7 @@ impl PPU {
 
                     self.clock -= 80;
                     self.mode = PPUMode::Drawing;
-                    let lcd_stat = (mem.reg().lcd_stat & 0xfc) | (PPUMode::Drawing as u8);
-                    mem.reg_mut().lcd_stat = lcd_stat;
+                    mem.reg_mut().lcd_stat.set_ppu_mode(PPUMode::Drawing);
                 }
             }
             PPUMode::Drawing => {
@@ -168,8 +136,7 @@ impl PPU {
                 if self.clock >= 172 {
                     self.clock -= 172;
                     self.mode = PPUMode::HBlank;
-                    let lcd_stat = (mem.reg().lcd_stat & 0xfc) | (PPUMode::HBlank as u8);
-                    mem.reg_mut().lcd_stat = lcd_stat;
+                    mem.reg_mut().lcd_stat.set_ppu_mode(PPUMode::HBlank);
                     self.draw_scanline(mem, buffer);
                 }
             }
@@ -184,7 +151,7 @@ impl PPU {
         let bg_y: u16 = (ly.wrapping_add(scy) / 8).into();
         let py = (ly.wrapping_add(scy) % 8) as u16;
 
-        let tile_ptr: u16 = if mem.reg().lcd_control & LCDC_BG_TILE_MAP_SELECT != 0 {
+        let tile_ptr: u16 = if mem.reg().lcd_control.bg_tile_map() {
             0x9c00
         } else {
             0x9800
@@ -201,13 +168,13 @@ impl PPU {
             let bg_pixel = (line1.rotate_left(px as u32) & 1) | (line2.rotate_left(px as u32 + 1) & 2);
 
             let mut sprite = None;
-            if mem.reg().lcd_control & LCDC_SHOW_SPRITES != 0 {
+            if mem.reg().lcd_control.obj_enable() {
                 sprite = self.sprite_buffer.iter()
                     .filter(|sprite| sprite.x <= x + 8 && x + 8 < sprite.x + 8)
                     .next();
             }
             let (sprite_pixel, bg_to_object_priority)  = if let Some(sprite) = sprite {
-                let sprite_height = if mem.reg().lcd_control & LCDC_SPRITE_DOUBLE_HEIGHT != 0 { 16 } else { 8 };
+                let sprite_height = if mem.reg().lcd_control.obj_double_height() { 16 } else { 8 };
                 let tile_id = sprite_tile_id(sprite.tile_id, sprite_height as u8) as u16;
                 let sprite_tile_addr = (tile_id * 16) + 0x8000;
                 dbg!(sprite, ly, x);
@@ -283,7 +250,7 @@ impl PPU {
     }
 
     fn get_tile_addr(&self, mem: &mut Memory, tile_id: u8) -> u16 {
-        if mem.reg().lcd_control & LCDC_BG_TILE_DATA != 0 {
+        if mem.reg().lcd_control.bg_and_window_tile_data_area() {
             (tile_id as u16) * 16 + 0x8000
         } else {
             let tile_sid = (tile_id as i8) as i16 * 16;
@@ -296,7 +263,7 @@ impl PPU {
         let mut tile_addr: u16;
         let mut tile_ptr: u16 = 0x9800;
 
-        if mem.reg().lcd_control & LCDC_BG_TILE_MAP_SELECT != 0 {
+        if mem.reg().lcd_control.bg_tile_map() {
             tile_ptr = 0x9c00;
         }
 
@@ -320,12 +287,12 @@ impl PPU {
 
         let mut win_ptr: u16 = 0x9800;
 
-        if mem.reg().lcd_control & LCDC_WINDOW_TILE_MAP_SELECT != 0 {
+        if mem.reg().lcd_control.window_tile_map_data_area() {
             win_ptr = 0x9c00;
         }
 
         // Window
-        if mem.reg().lcd_control & LCDC_WINDOW_ON != 0 {
+        if mem.reg().lcd_control.window_enable() {
             for r in 0..32 {
                 for c in 0..32 {
                     tile_id = mem.read8(win_ptr);
@@ -344,7 +311,7 @@ impl PPU {
         let mut id: u16;
         let mut flags: u8;
         let mut sprite_addr: u16 = 0xfe00;
-        if mem.reg().lcd_control & LCDC_SHOW_SPRITES != 0 {
+        if mem.reg().lcd_control.obj_enable() {
             for _r in 0..40 {
                 let y = mem.read8(sprite_addr).wrapping_sub(16);
                 sprite_addr += 1;
@@ -358,7 +325,7 @@ impl PPU {
                 if x == 0 && y == 0 {
                     continue;
                 }
-                if mem.reg().lcd_control & LCDC_SPRITE_DOUBLE_HEIGHT != 0 {
+                if mem.reg().lcd_control.obj_double_height() {
                     let tile_id = sprite_tile_id(id as u8, 16) as u16;
                     self.draw_sprite(mem, tile_id * 16 + 0x8000, buffer, x, y, flags);
                     self.draw_sprite(mem, tile_id * 16 + 0x8000 + 16, buffer, x, y + 8, flags);

@@ -1,4 +1,5 @@
 use crate::cpu::{Interrupt, CPU};
+use crate::memory_types::LCDControl;
 use crate::ppu::PPU;
 use crate::memory::Memory;
 
@@ -55,7 +56,7 @@ impl GB<'_> {
         self.mem.joypad_states[0] = 0x0f;
         self.mem.joypad_states[1] = 0x0f;
 
-        self.mem.reg_mut().lcd_control = 0x91;
+        self.mem.reg_mut().lcd_control = LCDControl::from_bits(0x91);
         self.mem.reg_mut().bg_palette_data = 0xfc;
         self.mem.reg_mut().object_palette_0 = 0xff;
         self.mem.reg_mut().object_palette_1 = 0xff;

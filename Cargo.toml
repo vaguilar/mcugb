@@ -12,5 +12,4 @@ pkg-config = "0.3.34"
 bitmask-enum = "2.2.5"
 clap = { version = "4.6", features = [ "derive" ] }
 memmap2 = "0.9.11"
-modular-bitfield = "0.13.1"
 sdl2 = "0.38"

@@ -1,26 +1,5 @@
 use crate::rom::{ROM, ROMSize};
-
-
-#[repr(u8)]
-#[allow(dead_code)]
-enum Joypad {
-    Both = 0x00,
-    Buttons = 0x10,
-    Directional = 0x20,
-    None = 0x30,
-}
-
-impl From<u8> for Joypad {
-    fn from(value: u8) -> Self {
-        match value & 0x30 {
-            0x00 => Joypad::Both,
-            0x10 => Joypad::Buttons,
-            0x20 => Joypad::Directional,
-            0x30 => Joypad::None,
-            _ => unreachable!(),
-        }
-    }
-}
+use crate::memory_types::{IORegisters, Joypad};
 
 pub struct Memory<'a> {
     pub rom: ROM<'a>,
@@ -85,7 +64,7 @@ impl Memory<'_> {
             0xff41 => {
                 // TODO
                 // 0x80 | if self.reg().lcd_y == self.reg().lcd_yc { 2 } else { 0 }
-                self.reg().lcd_stat | if self.reg().lcd_y == self.reg().lcd_yc { 2 } else { 0 }
+                self.reg().lcd_stat.bits() | if self.reg().lcd_y == self.reg().lcd_yc { 2 } else { 0 }
             },
             0xfe00..=0xffff => {
                 self.data[address as usize]
@@ -199,82 +178,6 @@ impl Memory<'_> {
         let source = self.data[start..end].to_owned();
         self.reg_mut().sprites.copy_from_slice(&source);
     }
-}
-
-/// memory starting at start at $fe00
-#[repr(C)]
-pub struct IORegisters {
-    /// $fe00
-    pub sprites: [u8; 160],
-    /// Nintendo says use of this area is prohibited
-    _prohibited: [u8; 96],
-
-    // io registers
-    /// $ff00
-    pub joypad: u8,
-    /// $ff01
-    pub serial_transfer_data: u8,
-    pub serial_transfer_control: u8,
-    _padding0: u8,
-    /// $ff04
-    pub timer_divider: u8,
-    /// $ff05
-    pub timer_tima: u8,
-    /// $ff06
-    pub timer_tma: u8,
-    /// $ff07
-    pub timer_tac: u8,
-    _padding1: [u8; 7],
-    /// $ff0f
-    pub interrupts: u8,
-    /// $ff10
-    pub audio: [u8; 22],
-    _padding2: [u8; 10],
-    /// $ff30
-    pub wave_pattern: [u8; 16],
-    /// $ff40
-    pub lcd_control: u8,
-    /// $ff41
-    pub lcd_stat: u8,
-    /// $ff42
-    pub lcd_scx: u8,
-    /// $ff43
-    pub lcd_scy: u8,
-    /// $ff44: current scan line -- READ-ONLY
-    pub lcd_y: u8,
-    /// $ff45
-    pub lcd_yc: u8,
-    /// $ff46
-    pub oam_dma_source_address: u8,
-    /// $ff47
-    pub bg_palette_data: u8,
-    /// $ff48
-    pub object_palette_0: u8,
-    /// $ff49
-    pub object_palette_1: u8,
-    /// $ff4a
-    pub wx: u8,
-    /// $ff4b
-    pub wy: u8,
-    _padding3: [u8; 3],
-    /// $ff4f
-    pub vram_bank_select: u8,
-    /// $ff50
-    pub bootrom_disable: u8,
-    /// $ff51
-    pub vram_dma: [u8; 5],
-    _padding4: [u8; 18],
-    /// $ff68
-    pub bg_object_pallets: [u8; 4],
-    _padding5: [u8; 4],
-    /// $ff70
-    pub wram_bank_select: u8,
-    _padding6: [u8; 15],
-
-    /// high ram $ff80
-    pub hram: [u8; 0x7f],
-    /// $ffff
-    pub interrupt_enable: u8,
 }
 
 #[cfg(test)]
