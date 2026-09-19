@@ -34,6 +34,39 @@ pub enum RAMSize {
     Banks8,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[allow(dead_code, reason = "used by mapper-aware external RAM access")]
+pub enum CartridgeController {
+    NoMBC { has_ram: bool },
+    MBC1 { has_ram: bool },
+    MBC2,
+    MBC3 { has_ram: bool, has_timer: bool },
+    MBC5 { has_ram: bool, has_rumble: bool },
+    Unsupported(u8),
+}
+
+#[allow(dead_code, reason = "used by mapper-aware external RAM access")]
+impl CartridgeController {
+    pub const fn from_cartridge_type(cartridge_type: u8) -> Self {
+        match cartridge_type {
+            0x00 => Self::NoMBC { has_ram: false },
+            0x08 | 0x09 => Self::NoMBC { has_ram: true },
+            0x01 => Self::MBC1 { has_ram: false },
+            0x02 | 0x03 => Self::MBC1 { has_ram: true },
+            0x05 | 0x06 => Self::MBC2,
+            0x0f => Self::MBC3 { has_ram: false, has_timer: true },
+            0x10 => Self::MBC3 { has_ram: true, has_timer: true },
+            0x11 => Self::MBC3 { has_ram: false, has_timer: false },
+            0x12 | 0x13 => Self::MBC3 { has_ram: true, has_timer: false },
+            0x19 => Self::MBC5 { has_ram: false, has_rumble: false },
+            0x1a | 0x1b => Self::MBC5 { has_ram: true, has_rumble: false },
+            0x1c => Self::MBC5 { has_ram: false, has_rumble: true },
+            0x1d | 0x1e => Self::MBC5 { has_ram: true, has_rumble: true },
+            _ => Self::Unsupported(cartridge_type),
+        }
+    }
+}
+
 #[repr(u8)]
 #[allow(dead_code)]
 pub enum DestinationCode {
@@ -66,6 +99,11 @@ impl Default for ROMHeader {
 }
 
 impl ROM<'_> {
+    #[allow(dead_code, reason = "used by mapper-aware external RAM access")]
+    pub const fn cartridge_controller(&self) -> CartridgeController {
+        CartridgeController::from_cartridge_type(self.header.cartridge_type)
+    }
+
     pub fn title(&self) -> &str {
         let mut title_end = 0;
         while self.header.title[title_end] != 0 && title_end < 16 {
@@ -82,5 +120,40 @@ impl ROM<'_> {
         let rom_header_buffer: &mut [u8; 80] = unsafe { std::mem::transmute(&mut rom.header) };
         rom_header_buffer.copy_from_slice(&rom_buffer[rom_header_start..rom_header_end]);
         rom
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CartridgeController, ROM};
+
+    #[test]
+    fn cartridge_type_classifies_supported_controllers() {
+        assert_eq!(
+            CartridgeController::from_cartridge_type(0x03),
+            CartridgeController::MBC1 { has_ram: true },
+        );
+        assert_eq!(
+            CartridgeController::from_cartridge_type(0x0f),
+            CartridgeController::MBC3 { has_ram: false, has_timer: true },
+        );
+        assert_eq!(
+            CartridgeController::from_cartridge_type(0x1e),
+            CartridgeController::MBC5 { has_ram: true, has_rumble: true },
+        );
+        assert_eq!(
+            CartridgeController::from_cartridge_type(0xfc),
+            CartridgeController::Unsupported(0xfc),
+        );
+    }
+
+    #[test]
+    fn rom_exposes_its_cartridge_controller() {
+        let mut buffer = [0; 0x150];
+        buffer[0x147] = 0x09;
+
+        let rom = ROM::new(&buffer);
+
+        assert_eq!(rom.cartridge_controller(), CartridgeController::NoMBC { has_ram: true });
     }
 }
