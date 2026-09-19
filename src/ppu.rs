@@ -77,7 +77,7 @@ impl PPU {
                     let lcd_y = mem.reg().lcd_y.wrapping_add(1);
                     mem.reg_mut().lcd_y = lcd_y;
 
-                    if mem.reg().lcd_y == 143 {
+                    if mem.reg().lcd_y == 144 {
                         self.mode = PPUMode::VBlank;
                         mem.reg_mut().lcd_stat.set_ppu_mode(PPUMode::VBlank);
                         vblank = true;
@@ -225,8 +225,9 @@ impl PPU {
 
 #[cfg(test)]
 mod tests {
-    use super::{read_oam_sprite, sprite_tile_id};
+    use super::{read_oam_sprite, sprite_tile_id, PPU};
     use crate::memory::Memory;
+    use crate::memory_types::PPUMode;
 
     #[test]
     fn oam_scan_reads_sprites_from_register_storage() {
@@ -244,5 +245,28 @@ mod tests {
     fn sprite_tile_id_only_aligns_16_pixel_sprites() {
         assert_eq!(sprite_tile_id(0x07, 8), 0x07);
         assert_eq!(sprite_tile_id(0x07, 16), 0x06);
+    }
+
+    #[test]
+    fn vblank_starts_at_scanline_144() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        let mut buffer = vec![0; 256 * 144 * 2];
+        let mut ppu = PPU::new();
+
+        ppu.mode = PPUMode::HBlank;
+        memory.reg_mut().lcd_y = 142;
+        let (redraw, vblank) = ppu.step(&mut memory, &mut buffer, 204);
+
+        assert_eq!(memory.reg().lcd_y, 143);
+        assert!(!redraw);
+        assert!(!vblank);
+
+        ppu.mode = PPUMode::HBlank;
+        let (redraw, vblank) = ppu.step(&mut memory, &mut buffer, 204);
+
+        assert_eq!(memory.reg().lcd_y, 144);
+        assert!(redraw);
+        assert!(vblank);
     }
 }
