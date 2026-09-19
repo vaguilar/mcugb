@@ -10,7 +10,7 @@ pub struct GB<'a> {
 }
 
 impl GB<'_> {
-    pub fn with_rom_buffer(rom_buffer: &[u8]) -> GB {
+    pub fn with_rom_buffer(rom_buffer: &[u8]) -> GB<'_> {
         GB {
             mem: Memory::with_rom_buffer(rom_buffer),
             cpu: CPU::new(),

@@ -13,7 +13,7 @@ const _: [(); 0x200] = [(); std::mem::size_of::<IORegisters>()];
 const _: [(); 1] = [(); std::mem::align_of::<IORegisters>()];
 
 impl Memory<'_> {
-    pub fn with_rom_buffer(rom_buffer: &[u8]) -> Memory {
+    pub fn with_rom_buffer(rom_buffer: &[u8]) -> Memory<'_> {
         Memory {
             rom: ROM::new(rom_buffer),
             data: [0; 65536],
