@@ -1569,7 +1569,7 @@ impl CPU {
                 32
             }
             0xe8 => {
-                immediate = ((mem.read8(self.pc) as i8) as i16) as u16;
+                immediate = ((self.fetch8(mem) as i8) as i16) as u16;
                 let (result, carry) = self.sp.overflowing_add(immediate);
                 let result12 = (self.sp & 0xfff) + (immediate & 0xfff);
                 self.set_flag(FLAG_Z, false);
