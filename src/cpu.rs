@@ -1986,7 +1986,9 @@ fn bit(val: u8, b: u8, flags: &mut u8, indirect: bool) -> u16 {
     set_flag(flags, FLAG_Z, result == 0);
     set_flag(flags, FLAG_N, false);
     set_flag(flags, FLAG_H, true);
-    if indirect { 16 } else { 8 }
+    // bit only reads its operand, so (hl) costs one less cycle than the
+    // read-modify-write ops
+    if indirect { 12 } else { 8 }
 }
 
 fn set(dst: &mut u8, b: u8, indirect: bool) -> u16 {
