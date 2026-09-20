@@ -726,7 +726,7 @@ impl CPU {
             0x3e => {
                 // ld a, n
                 self.reg.a = self.fetch8(mem);
-                16
+                8
             }
             0x3f => {
                 // ccf
@@ -1112,7 +1112,7 @@ impl CPU {
             0x8e => {
                 // adc a, (hl)
                 byte = mem.read8(self.hl());
-                adc(&mut self.reg.a, byte, &mut self.reg.f, false)
+                adc(&mut self.reg.a, byte, &mut self.reg.f, true)
             }
             0x8f => {
                 let a = self.reg.a;
@@ -1179,7 +1179,7 @@ impl CPU {
             0x9e => {
                 // sbc a, (hl)
                 byte = mem.read8(self.hl());
-                sbc(&mut self.reg.a, byte, &mut self.reg.f, false)
+                sbc(&mut self.reg.a, byte, &mut self.reg.f, true)
             }
             0x9f => {
                 // sbc a, a
@@ -1213,7 +1213,7 @@ impl CPU {
             0xa6 => {
                 // and a, (hl)
                 let indirect = mem.read8(self.hl());
-                and(&mut self.reg.a, indirect, &mut self.reg.f, false)
+                and(&mut self.reg.a, indirect, &mut self.reg.f, true)
             }
             0xa7 => {
                 // and a, a
@@ -1414,7 +1414,7 @@ impl CPU {
             0xce => {
                 // adc a, #
                 byte = self.fetch8(mem);
-                adc(&mut self.reg.a, byte, &mut self.reg.f, false)
+                adc(&mut self.reg.a, byte, &mut self.reg.f, true)
             }
             0xcf => {
                 // rst $8
@@ -1463,7 +1463,7 @@ impl CPU {
             0xd6 => {
                 // sub a, #
                 byte = self.fetch8(mem);
-                sub(&mut self.reg.a, byte, &mut self.reg.f, false)
+                sub(&mut self.reg.a, byte, &mut self.reg.f, true)
             }
             0xd7 => {
                 // rst $10
@@ -1510,7 +1510,7 @@ impl CPU {
             0xde => {
                 // sbc a, #
                 byte = self.fetch8(mem);
-                sbc(&mut self.reg.a, byte, &mut self.reg.f, false)
+                sbc(&mut self.reg.a, byte, &mut self.reg.f, true)
             }
             0xdf => {
                 // rst $18
