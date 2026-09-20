@@ -1716,21 +1716,23 @@ impl CPU {
         let y = (op >> 3) & 7;
         let z = op & 7;
 
-        let reg = match z {
-            0 => &mut self.reg.b,
-            1 => &mut self.reg.c,
-            2 => &mut self.reg.d,
-            3 => &mut self.reg.e,
-            4 => &mut self.reg.h,
-            5 => &mut self.reg.l,
-            6 => &mut mem.read8(self.hl()),
-            7 => &mut self.reg.a,
+        let indirect = z == 6;
+        let hl = self.hl();
+
+        let mut value = match z {
+            0 => self.reg.b,
+            1 => self.reg.c,
+            2 => self.reg.d,
+            3 => self.reg.e,
+            4 => self.reg.h,
+            5 => self.reg.l,
+            6 => mem.read8(hl),
+            7 => self.reg.a,
             _ => panic!("???"),
         };
+        let reg = &mut value;
 
-        let indirect = z == 6;
-
-        match x {
+        let cycles = match x {
             0 => {
                 match y {
                     0 => rlc(reg, &mut self.reg.f, indirect),
@@ -1748,7 +1750,24 @@ impl CPU {
             2 => res(reg, y, indirect),
             3 => set(reg, y, indirect),
             _ => panic!("Unhandled instruction: 0xCB 0x{:02X}", op),
+        };
+
+        // bit only tests its operand, everything else writes the result back
+        if x != 1 {
+            match z {
+                0 => self.reg.b = value,
+                1 => self.reg.c = value,
+                2 => self.reg.d = value,
+                3 => self.reg.e = value,
+                4 => self.reg.h = value,
+                5 => self.reg.l = value,
+                6 => mem.write8(hl, value),
+                7 => self.reg.a = value,
+                _ => unreachable!(),
+            }
         }
+
+        cycles
     }
 }
 
