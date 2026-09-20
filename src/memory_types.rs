@@ -56,7 +56,6 @@ impl DMGPalette {
         Self(bits)
     }
 
-    #[allow(dead_code, reason = "used by pending DMG palette rendering")]
     pub const fn map_color(self, color_index: u8) -> u8 {
         (self.0 >> ((color_index & 0b11) * 2)) & 0b11
     }

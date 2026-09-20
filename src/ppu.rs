@@ -216,6 +216,7 @@ impl PPU {
             let line2 = mem.read8(bg_tile_addr + (2 * py + 1));
             let shift = 7 - px;
             let bg_pixel = ((line1 >> shift) & 1) | (((line2 >> shift) & 1) << 1);
+            let bg_color = mem.reg().bg_palette_data.map_color(bg_pixel);
 
             let sprite_height = if mem.reg().lcd_control.obj_double_height() { 16 } else { 8 };
             let sprite = if mem.reg().lcd_control.obj_enable() {
@@ -234,8 +235,8 @@ impl PPU {
             };
 
             let color = match (bg_pixel, sprite_pixel, bg_to_object_priority) {
-                (_, 0, _) => bg_pixel,
-                (1.., _, true) => bg_pixel,
+                (_, 0, _) => bg_color,
+                (1.., _, true) => bg_color,
                 _ => sprite_pixel,
             };
 
@@ -268,7 +269,7 @@ impl PPU {
 mod tests {
     use super::{read_oam_sprite, sprite_tile_id, OAMSprite, PPU};
     use crate::memory::Memory;
-    use crate::memory_types::{LCDControl, PPUMode};
+    use crate::memory_types::{DMGPalette, LCDControl, PPUMode};
 
     fn assert_pixel_color(buffer: &[u8], x: usize, y: usize, color: usize) {
         let offset = ((y * 256) + x) * 2;
@@ -351,6 +352,7 @@ mod tests {
         let mut buffer = vec![0; 256 * 144 * 2];
         let mut ppu = PPU::new();
         memory.reg_mut().lcd_control = LCDControl::from_bits(1 << 4);
+        memory.reg_mut().bg_palette_data = DMGPalette::from_bits(0xe4);
         memory.write8(0x9800, 0);
         memory.write8(0x8000, 0b1010_0000);
         memory.write8(0x8001, 0b0110_0000);
@@ -370,6 +372,7 @@ mod tests {
         let mut buffer = vec![0; 256 * 144 * 2];
         let mut ppu = PPU::new();
         memory.reg_mut().lcd_control = LCDControl::from_bits(1 << 4);
+        memory.reg_mut().bg_palette_data = DMGPalette::from_bits(0xe4);
         memory.reg_mut().lcd_scx = 255;
         memory.write8(0x981f, 1);
         memory.write8(0x9800, 2);
@@ -393,6 +396,7 @@ mod tests {
         let mut buffer = vec![0; 256 * 144 * 2];
         let mut ppu = PPU::new();
         memory.reg_mut().lcd_control = LCDControl::from_bits(0b0111_0000);
+        memory.reg_mut().bg_palette_data = DMGPalette::from_bits(0xe4);
         memory.reg_mut().wx = 0;
         memory.write8(0x9c00, 1);
         memory.write8(0x8010, 0b0000_0001);
@@ -410,6 +414,7 @@ mod tests {
         let mut buffer = vec![0; 256 * 144 * 2];
         let mut ppu = PPU::new();
         memory.reg_mut().lcd_control = LCDControl::from_bits(0b0111_0000);
+        memory.reg_mut().bg_palette_data = DMGPalette::from_bits(0xe4);
         memory.reg_mut().wx = 7;
         memory.reg_mut().wy = 5;
         memory.write8(0x9c00, 1);
@@ -431,6 +436,7 @@ mod tests {
         let mut buffer = vec![0; 256 * 144 * 2];
         let mut ppu = PPU::new();
         memory.reg_mut().lcd_control = LCDControl::from_bits(0b0111_0000);
+        memory.reg_mut().bg_palette_data = DMGPalette::from_bits(0xe4);
         memory.reg_mut().wx = 167;
         memory.write8(0x9800, 0);
         memory.write8(0x9c00, 1);
@@ -441,6 +447,21 @@ mod tests {
 
         assert_pixel_color(&buffer, 0, 0, 2);
         assert_pixel_color(&buffer, 159, 0, 2);
+    }
+
+    #[test]
+    fn background_uses_dmg_palette_mapping() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        let mut buffer = vec![0; 256 * 144 * 2];
+        let mut ppu = PPU::new();
+        memory.reg_mut().lcd_control = LCDControl::from_bits(1 << 4);
+        memory.reg_mut().bg_palette_data = DMGPalette::from_bits(0b0000_1100);
+        memory.write8(0x8000, 0b1000_0000);
+
+        ppu.draw_scanline(&mut memory, &mut buffer);
+
+        assert_pixel_color(&buffer, 0, 0, 3);
     }
 
     #[test]
