@@ -49,6 +49,21 @@ impl TimerControl {
 
 #[repr(transparent)]
 #[derive(Clone, Copy, Default)]
+pub struct DMGPalette(u8);
+
+impl DMGPalette {
+    pub const fn from_bits(bits: u8) -> Self {
+        Self(bits)
+    }
+
+    #[allow(dead_code, reason = "used by pending DMG palette rendering")]
+    pub const fn map_color(self, color_index: u8) -> u8 {
+        (self.0 >> ((color_index & 0b11) * 2)) & 0b11
+    }
+}
+
+#[repr(transparent)]
+#[derive(Clone, Copy, Default)]
 pub struct LCDControl(u8);
 
 impl LCDControl {
@@ -194,11 +209,11 @@ pub struct IORegisters {
     /// $FF46
     pub oam_dma_source_address: u8,
     /// $FF47
-    pub bg_palette_data: u8,
+    pub bg_palette_data: DMGPalette,
     /// $FF48
-    pub object_palette_0: u8,
+    pub object_palette_0: DMGPalette,
     /// $FF49
-    pub object_palette_1: u8,
+    pub object_palette_1: DMGPalette,
     /// $FF4A
     pub wy: u8,
     /// $FF4B
@@ -225,7 +240,7 @@ pub struct IORegisters {
 
 #[cfg(test)]
 mod tests {
-    use super::{IORegisters, LCDControl, LCDStatus, PPUMode, TimerControl};
+    use super::{DMGPalette, IORegisters, LCDControl, LCDStatus, PPUMode, TimerControl};
 
     #[test]
     fn register_types_preserve_byte_layout() {
@@ -235,6 +250,8 @@ mod tests {
         assert_eq!(std::mem::align_of::<LCDStatus>(), 1);
         assert_eq!(std::mem::size_of::<TimerControl>(), 1);
         assert_eq!(std::mem::align_of::<TimerControl>(), 1);
+        assert_eq!(std::mem::size_of::<DMGPalette>(), 1);
+        assert_eq!(std::mem::align_of::<DMGPalette>(), 1);
         assert_eq!(std::mem::size_of::<IORegisters>(), 0x200);
         assert_eq!(std::mem::align_of::<IORegisters>(), 1);
         assert_eq!(std::mem::offset_of!(IORegisters, lcd_control), 0x140);
@@ -242,6 +259,9 @@ mod tests {
         assert_eq!(std::mem::offset_of!(IORegisters, timer_tac), 0x107);
         assert_eq!(std::mem::offset_of!(IORegisters, wy), 0x14a);
         assert_eq!(std::mem::offset_of!(IORegisters, wx), 0x14b);
+        assert_eq!(std::mem::offset_of!(IORegisters, bg_palette_data), 0x147);
+        assert_eq!(std::mem::offset_of!(IORegisters, object_palette_0), 0x148);
+        assert_eq!(std::mem::offset_of!(IORegisters, object_palette_1), 0x149);
     }
 
     #[test]
@@ -274,5 +294,15 @@ mod tests {
             assert!(control.enabled());
             assert_eq!(control.period_cycles(), period);
         }
+    }
+
+    #[test]
+    fn dmg_palette_maps_each_color_pair() {
+        let palette = DMGPalette::from_bits(0b00_01_10_11);
+
+        assert_eq!(palette.map_color(0), 3);
+        assert_eq!(palette.map_color(1), 2);
+        assert_eq!(palette.map_color(2), 1);
+        assert_eq!(palette.map_color(3), 0);
     }
 }
