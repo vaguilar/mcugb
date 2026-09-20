@@ -269,6 +269,18 @@ mod tests {
     }
 
     #[test]
+    fn window_positions_use_the_hardware_register_addresses() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+
+        memory.write8(0xff4a, 42);
+        memory.write8(0xff4b, 111);
+
+        assert_eq!(memory.reg().wy, 42);
+        assert_eq!(memory.reg().wx, 111);
+    }
+
+    #[test]
     fn unbanked_external_ram_is_always_accessible() {
         let rom = rom_with_cartridge_type(0x08);
         let mut memory = Memory::with_rom_buffer(&rom);

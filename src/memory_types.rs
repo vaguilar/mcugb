@@ -200,9 +200,9 @@ pub struct IORegisters {
     /// $FF49
     pub object_palette_1: u8,
     /// $FF4A
-    pub wx: u8,
-    /// $FF4B
     pub wy: u8,
+    /// $FF4B
+    pub wx: u8,
     _padding3: [u8; 3],
     /// $FF4F
     pub vram_bank_select: u8,
@@ -240,6 +240,8 @@ mod tests {
         assert_eq!(std::mem::offset_of!(IORegisters, lcd_control), 0x140);
         assert_eq!(std::mem::offset_of!(IORegisters, lcd_stat), 0x141);
         assert_eq!(std::mem::offset_of!(IORegisters, timer_tac), 0x107);
+        assert_eq!(std::mem::offset_of!(IORegisters, wy), 0x14a);
+        assert_eq!(std::mem::offset_of!(IORegisters, wx), 0x14b);
     }
 
     #[test]
