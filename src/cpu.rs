@@ -9,8 +9,6 @@ fn set_flag(flags: &mut u8, mask: u8, set: bool) {
     }
 }
 
-static TAC_SELECT: [u16; 4] = [1024, 16, 64, 256];
-
 static FLAG_Z: u8 = 0x80;
 static FLAG_N: u8 = 0x40;
 static FLAG_H: u8 = 0x20;
@@ -227,14 +225,11 @@ impl CPU {
 
     fn update_timer(&mut self, mem: &mut Memory, cycles: u16) {
         let tac = mem.reg().timer_tac;
-
-        let mode: usize = tac as usize & 0b00000011;
-        let timer_on: u8 = tac & 0b00000100;
-
-        if timer_on != 0 {
+        if tac.enabled() {
+            let period = tac.period_cycles();
             self.timer_cycles += cycles;
-            if self.timer_cycles >= TAC_SELECT[mode] {
-                self.timer_cycles -= TAC_SELECT[mode];
+            if self.timer_cycles >= period {
+                self.timer_cycles -= period;
                 let (timer, overflow) = mem.reg().timer_tima.overflowing_add(1);
                 mem.reg_mut().timer_tima = timer;
 
@@ -2020,6 +2015,7 @@ fn sra(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
 mod tests {
     use super::{daa, CPU, Interrupt, FLAG_C, FLAG_H, FLAG_N, FLAG_Z};
     use crate::memory::Memory;
+    use crate::memory_types::TimerControl;
 
     fn test_memory(rom: &[u8]) -> Memory<'_> {
         Memory::with_rom_buffer(rom)
@@ -2030,7 +2026,7 @@ mod tests {
         let rom = [0; 0x150];
         let mut memory = test_memory(&rom);
         let mut cpu = CPU::new();
-        memory.reg_mut().timer_tac = 0b101;
+        memory.reg_mut().timer_tac = TimerControl::from_bits(0b101);
         memory.reg_mut().timer_tima = 0xff;
         memory.reg_mut().timer_tma = 0x42;
 

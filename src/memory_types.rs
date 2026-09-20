@@ -21,6 +21,34 @@ impl From<u8> for Joypad {
 
 #[repr(transparent)]
 #[derive(Clone, Copy, Default)]
+pub struct TimerControl(u8);
+
+impl TimerControl {
+    const CLOCK_SELECT: u8 = 0b11;
+    const ENABLE: u8 = 1 << 2;
+
+    #[allow(dead_code, reason = "used by tests and direct register initialization")]
+    pub const fn from_bits(bits: u8) -> Self {
+        Self(bits)
+    }
+
+    pub const fn enabled(self) -> bool {
+        self.0 & Self::ENABLE != 0
+    }
+
+    pub const fn period_cycles(self) -> u16 {
+        match self.0 & Self::CLOCK_SELECT {
+            0 => 1024,
+            1 => 16,
+            2 => 64,
+            3 => 256,
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[repr(transparent)]
+#[derive(Clone, Copy, Default)]
 pub struct LCDControl(u8);
 
 impl LCDControl {
@@ -142,7 +170,7 @@ pub struct IORegisters {
     /// $FF06
     pub timer_tma: u8,
     /// $FF07
-    pub timer_tac: u8,
+    pub timer_tac: TimerControl,
     _padding1: [u8; 7],
     /// $FF0F
     pub interrupts: u8,
@@ -197,7 +225,7 @@ pub struct IORegisters {
 
 #[cfg(test)]
 mod tests {
-    use super::{IORegisters, LCDControl, LCDStatus, PPUMode};
+    use super::{IORegisters, LCDControl, LCDStatus, PPUMode, TimerControl};
 
     #[test]
     fn register_types_preserve_byte_layout() {
@@ -205,10 +233,13 @@ mod tests {
         assert_eq!(std::mem::align_of::<LCDControl>(), 1);
         assert_eq!(std::mem::size_of::<LCDStatus>(), 1);
         assert_eq!(std::mem::align_of::<LCDStatus>(), 1);
+        assert_eq!(std::mem::size_of::<TimerControl>(), 1);
+        assert_eq!(std::mem::align_of::<TimerControl>(), 1);
         assert_eq!(std::mem::size_of::<IORegisters>(), 0x200);
         assert_eq!(std::mem::align_of::<IORegisters>(), 1);
         assert_eq!(std::mem::offset_of!(IORegisters, lcd_control), 0x140);
         assert_eq!(std::mem::offset_of!(IORegisters, lcd_stat), 0x141);
+        assert_eq!(std::mem::offset_of!(IORegisters, timer_tac), 0x107);
     }
 
     #[test]
@@ -229,5 +260,17 @@ mod tests {
 
         assert_eq!(status.bits(), 0b1111_1111);
         assert_eq!(status.ppu_mode(), PPUMode::Drawing);
+    }
+
+    #[test]
+    fn timer_control_exposes_enable_and_clock_period() {
+        assert!(!TimerControl::from_bits(0).enabled());
+
+        for (select, period) in [(0, 1024), (1, 16), (2, 64), (3, 256)].iter().copied() {
+            let control = TimerControl::from_bits((1 << 2) | select);
+
+            assert!(control.enabled());
+            assert_eq!(control.period_cycles(), period);
+        }
     }
 }
