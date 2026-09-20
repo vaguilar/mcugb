@@ -40,6 +40,27 @@ impl OAMSprite {
     fn bg_to_object_priority(&self) -> bool { (self.sprite_flags & SPRITE_PRIORITY) != 0 }
     fn flip_vertical(&self) -> bool { (self.sprite_flags & SPRITE_FLIP_V) != 0 }
     fn flip_horizontal(&self) -> bool { (self.sprite_flags & SPRITE_FLIP_H) != 0 }
+
+    fn pixel(&self, mem: &Memory, x: u8, ly: u8, sprite_height: u16) -> Option<u8> {
+        let screen_x = self.screen_x();
+        let x = x as i16;
+        if x < screen_x || x >= screen_x + 8 {
+            return None;
+        }
+
+        let tile_id = sprite_tile_id(self.tile_id, sprite_height as u8) as u16;
+        let tile_addr = (tile_id * 16) + 0x8000;
+        let mut sprite_y = (ly as i16 - self.screen_y()) as u16;
+        let mut sprite_x = (x - screen_x) as u16;
+        if self.flip_horizontal() { sprite_x = 7 - sprite_x; }
+        if self.flip_vertical() { sprite_y = sprite_height - 1 - sprite_y; }
+
+        let low = mem.read8(tile_addr + (2 * sprite_y));
+        let high = mem.read8(tile_addr + (2 * sprite_y + 1));
+        let shift = 7 - sprite_x;
+        let pixel = ((low >> shift) & 1) | (((high >> shift) & 1) << 1);
+        (pixel != 0).then_some(pixel)
+    }
 }
 
 fn read_oam_sprite(mem: &Memory, index: usize) -> OAMSprite {
@@ -196,28 +217,18 @@ impl PPU {
             let shift = 7 - px;
             let bg_pixel = ((line1 >> shift) & 1) | (((line2 >> shift) & 1) << 1);
 
-            let mut sprite = None;
-            if mem.reg().lcd_control.obj_enable() {
-                sprite = self.sprite_buffer.iter().find(|sprite| {
-                    let sprite_x = sprite.screen_x();
-                    let x = x as i16;
-                    x >= sprite_x && x < sprite_x + 8
-                });
-            }
-            let (sprite_pixel, bg_to_object_priority)  = if let Some(sprite) = sprite {
-                let sprite_height = if mem.reg().lcd_control.obj_double_height() { 16 } else { 8 };
-                let tile_id = sprite_tile_id(sprite.tile_id, sprite_height as u8) as u16;
-                let sprite_tile_addr = (tile_id * 16) + 0x8000;
-                let mut sprite_y = (ly as i16 - sprite.screen_y()) as u16;
-                let mut sprite_x = (x as i16 - sprite.screen_x()) as u16;
-                if sprite.flip_horizontal() { sprite_x = 7 - sprite_x; }
-                if sprite.flip_vertical() { sprite_y = sprite_height - 1 - sprite_y; }
-                let line1 = mem.read8(sprite_tile_addr + (2 * sprite_y));
-                let line2 = mem.read8(sprite_tile_addr + (2 * sprite_y + 1));
-                // let sprite_pixel = (line1.rotate_left(px as u32) & 1) | (line2.rotate_left(px as u32 + 1) & 2);
-                let mut sprite_pixel = (line1 >> (7 - sprite_x)) & 1;
-                sprite_pixel |= if line2 & (0x80 >> sprite_x) != 0 { 2 } else { 0 };
-                (sprite_pixel, sprite.bg_to_object_priority())
+            let sprite_height = if mem.reg().lcd_control.obj_double_height() { 16 } else { 8 };
+            let sprite = if mem.reg().lcd_control.obj_enable() {
+                self.sprite_buffer.iter().enumerate().filter_map(|(oam_order, sprite)| {
+                    sprite.pixel(mem, x, ly, sprite_height).map(|pixel| {
+                        (sprite.x, oam_order, sprite, pixel)
+                    })
+                }).min_by_key(|(sprite_x, oam_order, _, _)| (*sprite_x, *oam_order))
+            } else {
+                None
+            };
+            let (sprite_pixel, bg_to_object_priority) = if let Some((_, _, sprite, pixel)) = sprite {
+                (pixel, sprite.bg_to_object_priority())
             } else {
                 (0, false)
             };
@@ -430,6 +441,56 @@ mod tests {
 
         assert_pixel_color(&buffer, 0, 0, 2);
         assert_pixel_color(&buffer, 159, 0, 2);
+    }
+
+    #[test]
+    fn transparent_sprite_pixel_reveals_overlapping_sprite() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        let mut buffer = vec![0; 256 * 144 * 2];
+        let mut ppu = PPU::new();
+        memory.reg_mut().lcd_control = LCDControl::from_bits(1 << 1);
+        memory.write8(0x8010, 0b1000_0000);
+        ppu.sprite_buffer[0] = OAMSprite { y: 16, x: 8, tile_id: 0, sprite_flags: 0 };
+        ppu.sprite_buffer[1] = OAMSprite { y: 16, x: 8, tile_id: 1, sprite_flags: 0 };
+
+        ppu.draw_scanline(&mut memory, &mut buffer);
+
+        assert_pixel_color(&buffer, 0, 0, 1);
+    }
+
+    #[test]
+    fn equal_x_uses_earlier_opaque_oam_entry() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        let mut buffer = vec![0; 256 * 144 * 2];
+        let mut ppu = PPU::new();
+        memory.reg_mut().lcd_control = LCDControl::from_bits(1 << 1);
+        memory.write8(0x8001, 0b1000_0000);
+        memory.write8(0x8010, 0b1000_0000);
+        ppu.sprite_buffer[0] = OAMSprite { y: 16, x: 8, tile_id: 0, sprite_flags: 0 };
+        ppu.sprite_buffer[1] = OAMSprite { y: 16, x: 8, tile_id: 1, sprite_flags: 0 };
+
+        ppu.draw_scanline(&mut memory, &mut buffer);
+
+        assert_pixel_color(&buffer, 0, 0, 2);
+    }
+
+    #[test]
+    fn smaller_x_sprite_has_priority_over_earlier_oam_entry() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        let mut buffer = vec![0; 256 * 144 * 2];
+        let mut ppu = PPU::new();
+        memory.reg_mut().lcd_control = LCDControl::from_bits(1 << 1);
+        memory.write8(0x8000, 0b1000_0000);
+        memory.write8(0x8011, 0b0100_0000);
+        ppu.sprite_buffer[0] = OAMSprite { y: 16, x: 9, tile_id: 0, sprite_flags: 0 };
+        ppu.sprite_buffer[1] = OAMSprite { y: 16, x: 8, tile_id: 1, sprite_flags: 0 };
+
+        ppu.draw_scanline(&mut memory, &mut buffer);
+
+        assert_pixel_color(&buffer, 1, 0, 2);
     }
 
     #[test]
