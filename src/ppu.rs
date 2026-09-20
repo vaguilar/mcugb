@@ -17,6 +17,7 @@ enum SpriteFlags {
 static SPRITE_PRIORITY: u8 = 1 << 7;
 static SPRITE_FLIP_V: u8 = 1 << 6;
 static SPRITE_FLIP_H: u8 = 1 << 5;
+static SPRITE_DMG_PALETTE: u8 = 1 << 4;
 
 static COLORS: [(u8, u8); 4] = [(0xe7, 0x9c), (0x97, 0x08), (0x44, 0x31), (0x31, 0x6a)];
 
@@ -40,6 +41,7 @@ impl OAMSprite {
     fn bg_to_object_priority(&self) -> bool { (self.sprite_flags & SPRITE_PRIORITY) != 0 }
     fn flip_vertical(&self) -> bool { (self.sprite_flags & SPRITE_FLIP_V) != 0 }
     fn flip_horizontal(&self) -> bool { (self.sprite_flags & SPRITE_FLIP_H) != 0 }
+    fn uses_object_palette_1(&self) -> bool { (self.sprite_flags & SPRITE_DMG_PALETTE) != 0 }
 
     fn pixel(&self, mem: &Memory, x: u8, ly: u8, sprite_height: u16) -> Option<u8> {
         let screen_x = self.screen_x();
@@ -228,16 +230,19 @@ impl PPU {
             } else {
                 None
             };
-            let (sprite_pixel, bg_to_object_priority) = if let Some((_, _, sprite, pixel)) = sprite {
-                (pixel, sprite.bg_to_object_priority())
-            } else {
-                (0, false)
-            };
+            let sprite_color = sprite.map(|(_, _, sprite, pixel)| {
+                let palette = if sprite.uses_object_palette_1() {
+                    mem.reg().object_palette_1
+                } else {
+                    mem.reg().object_palette_0
+                };
+                (palette.map_color(pixel), sprite.bg_to_object_priority())
+            });
 
-            let color = match (bg_pixel, sprite_pixel, bg_to_object_priority) {
-                (_, 0, _) => bg_color,
-                (1.., _, true) => bg_color,
-                _ => sprite_pixel,
+            let color = match (bg_pixel, sprite_color) {
+                (_, None) => bg_color,
+                (1.., Some((_, true))) => bg_color,
+                (_, Some((sprite_color, _))) => sprite_color,
             };
 
             PPU::set_pixel(buffer, x, ly, color as usize);
@@ -471,6 +476,7 @@ mod tests {
         let mut buffer = vec![0; 256 * 144 * 2];
         let mut ppu = PPU::new();
         memory.reg_mut().lcd_control = LCDControl::from_bits(1 << 1);
+        memory.reg_mut().object_palette_0 = DMGPalette::from_bits(0xe4);
         memory.write8(0x8010, 0b1000_0000);
         ppu.sprite_buffer[0] = OAMSprite { y: 16, x: 8, tile_id: 0, sprite_flags: 0 };
         ppu.sprite_buffer[1] = OAMSprite { y: 16, x: 8, tile_id: 1, sprite_flags: 0 };
@@ -487,6 +493,7 @@ mod tests {
         let mut buffer = vec![0; 256 * 144 * 2];
         let mut ppu = PPU::new();
         memory.reg_mut().lcd_control = LCDControl::from_bits(1 << 1);
+        memory.reg_mut().object_palette_0 = DMGPalette::from_bits(0xe4);
         memory.write8(0x8001, 0b1000_0000);
         memory.write8(0x8010, 0b1000_0000);
         ppu.sprite_buffer[0] = OAMSprite { y: 16, x: 8, tile_id: 0, sprite_flags: 0 };
@@ -504,6 +511,7 @@ mod tests {
         let mut buffer = vec![0; 256 * 144 * 2];
         let mut ppu = PPU::new();
         memory.reg_mut().lcd_control = LCDControl::from_bits(1 << 1);
+        memory.reg_mut().object_palette_0 = DMGPalette::from_bits(0xe4);
         memory.write8(0x8000, 0b1000_0000);
         memory.write8(0x8011, 0b0100_0000);
         ppu.sprite_buffer[0] = OAMSprite { y: 16, x: 9, tile_id: 0, sprite_flags: 0 };
@@ -515,12 +523,54 @@ mod tests {
     }
 
     #[test]
+    fn sprite_selects_object_palette_from_oam_flag() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        let mut buffer = vec![0; 256 * 144 * 2];
+        let mut ppu = PPU::new();
+        memory.reg_mut().lcd_control = LCDControl::from_bits(1 << 1);
+        memory.reg_mut().object_palette_0 = DMGPalette::from_bits(0xe4);
+        memory.reg_mut().object_palette_1 = DMGPalette::from_bits(0b0000_1100);
+        memory.write8(0x8000, 0b1000_0000);
+        ppu.sprite_buffer[0] = OAMSprite {
+            y: 16,
+            x: 8,
+            tile_id: 0,
+            sprite_flags: super::SPRITE_DMG_PALETTE,
+        };
+
+        ppu.draw_scanline(&mut memory, &mut buffer);
+
+        assert_pixel_color(&buffer, 0, 0, 3);
+    }
+
+    #[test]
+    fn sprite_palette_shade_zero_remains_opaque() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        let mut buffer = vec![0; 256 * 144 * 2];
+        let mut ppu = PPU::new();
+        memory.reg_mut().lcd_control = LCDControl::from_bits((1 << 4) | (1 << 1));
+        memory.reg_mut().bg_palette_data = DMGPalette::from_bits(0xe4);
+        memory.reg_mut().object_palette_0 = DMGPalette::from_bits(0);
+        memory.write8(0x9800, 2);
+        memory.write8(0x8021, 0b1000_0000);
+        memory.write8(0x8010, 0b1000_0000);
+        ppu.sprite_buffer[0] = OAMSprite { y: 16, x: 8, tile_id: 1, sprite_flags: 0 };
+
+        ppu.draw_scanline(&mut memory, &mut buffer);
+
+        assert_pixel_color(&buffer, 0, 0, 0);
+    }
+
+    #[test]
     fn vertically_flipped_8_pixel_sprite_uses_its_last_row_first() {
         let rom = [0; 0x150];
         let mut memory = Memory::with_rom_buffer(&rom);
         let mut buffer = vec![0; 256 * 144 * 2];
         let mut ppu = PPU::new();
         memory.reg_mut().lcd_control = LCDControl::from_bits(1 << 1);
+        memory.reg_mut().object_palette_0 = DMGPalette::from_bits(0xe4);
         memory.write8(0x800e, 0b1000_0000);
         ppu.sprite_buffer[0] = OAMSprite {
             y: 16,
@@ -541,6 +591,7 @@ mod tests {
         let mut buffer = vec![0; 256 * 144 * 2];
         let mut ppu = PPU::new();
         memory.reg_mut().lcd_control = LCDControl::from_bits((1 << 2) | (1 << 1));
+        memory.reg_mut().object_palette_0 = DMGPalette::from_bits(0xe4);
         memory.write8(0x801e, 0b1000_0000);
         ppu.sprite_buffer[0] = OAMSprite {
             y: 16,
