@@ -658,12 +658,10 @@ impl CPU {
             }
             0x34 => {
                 // inc (hl)
-                let (result, overflow) = mem.read8(self.hl()).overflowing_add(1);
-                mem.write8(self.hl(), result & 0xff);
-                self.set_flag(FLAG_Z, result == 0);
-                self.set_flag(FLAG_N, false);
-                self.set_flag(FLAG_H, overflow);
-                12
+                let mut value = mem.read8(self.hl());
+                let cycles = inc8(&mut value, &mut self.reg.f, true);
+                mem.write8(self.hl(), value);
+                cycles
             }
             0x35 => {
                 // dec (hl)
