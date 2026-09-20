@@ -665,13 +665,10 @@ impl CPU {
             }
             0x35 => {
                 // dec (hl)
-                byte = mem.read8(self.hl());
-                result = byte.wrapping_sub(1);
-                mem.write8(self.hl(), result);
-                self.set_flag(FLAG_Z, result == 0);
-                self.set_flag(FLAG_N, true);
-                self.set_flag(FLAG_H, byte & 0xf != 0);
-                12
+                let mut value = mem.read8(self.hl());
+                let cycles = dec8(&mut value, &mut self.reg.f, true);
+                mem.write8(self.hl(), value);
+                cycles
             }
             0x36 => {
                 // ld (hl), n
