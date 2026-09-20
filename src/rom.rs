@@ -35,7 +35,7 @@ pub enum RAMSize {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[allow(dead_code, reason = "used by mapper-aware external RAM access")]
+#[allow(dead_code, reason = "not all classified controller capabilities are implemented yet")]
 pub enum CartridgeController {
     NoMBC { has_ram: bool },
     MBC1 { has_ram: bool },
@@ -45,7 +45,6 @@ pub enum CartridgeController {
     Unsupported(u8),
 }
 
-#[allow(dead_code, reason = "used by mapper-aware external RAM access")]
 impl CartridgeController {
     pub const fn from_cartridge_type(cartridge_type: u8) -> Self {
         match cartridge_type {
@@ -99,7 +98,6 @@ impl Default for ROMHeader {
 }
 
 impl ROM<'_> {
-    #[allow(dead_code, reason = "used by mapper-aware external RAM access")]
     pub const fn cartridge_controller(&self) -> CartridgeController {
         CartridgeController::from_cartridge_type(self.header.cartridge_type)
     }
