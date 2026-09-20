@@ -281,7 +281,7 @@ impl CPU {
                 let offset = self.fetch8(mem) as i8; // signed value
                 let offset = offset as i16; // sign extend
                 self.pc = self.pc.wrapping_add(offset as u16);
-                Some(8)
+                Some(12)
             },
             (0, _, 0) => {
                 // jr cc[y-4], d
@@ -481,7 +481,7 @@ impl CPU {
                 // jr n
                 let offset = self.fetch8(mem) as i8; // signed value
                 self.pc = self.pc.wrapping_add(offset as u16);
-                8
+                12
             }
             0x19 => {
                 // add hl, de
@@ -530,8 +530,10 @@ impl CPU {
                 let offset = self.fetch8(mem) as i8; // signed value
                 if self.nz() {
                     self.pc = self.pc.wrapping_add(offset as u16);
+                    12
+                } else {
+                    8
                 }
-                8
             }
             0x21 => {
                 // ld hl, nn
@@ -578,8 +580,10 @@ impl CPU {
                 let offset = self.fetch8(mem) as i8; // signed value
                 if self.z() {
                     self.pc = self.pc.wrapping_add(offset as u16);
+                    12
+                } else {
+                    8
                 }
-                8
             }
             0x29 => {
                 // add hl, hl
@@ -634,8 +638,10 @@ impl CPU {
                 let offset = self.fetch8(mem) as i8; // signed value
                 if self.nc() {
                     self.pc = self.pc.wrapping_add(offset as u16);
+                    12
+                } else {
+                    8
                 }
-                8
             }
             0x31 => {
                 // ld sp, nn
@@ -688,8 +694,10 @@ impl CPU {
                 let offset = self.fetch8(mem) as i8; // signed value
                 if self.c() {
                     self.pc = self.pc.wrapping_add(offset as u16);
+                    12
+                } else {
+                    8
                 }
-                8
             }
             0x39 => {
                 // add hl, sp
@@ -1327,8 +1335,10 @@ impl CPU {
                 // ret nz
                 if self.nz() {
                     self.pc = self.pop_stack(mem);
+                    20
+                } else {
+                    8
                 }
-                8
             }
             0xc1 => {
                 // pop bc
@@ -1341,13 +1351,15 @@ impl CPU {
                 addr = self.fetch16(mem);
                 if self.nz() {
                     self.pc = addr;
+                    16
+                } else {
+                    12
                 }
-                12
             }
             0xc3 => {
                 // jp nn
                 self.pc = self.fetch16(mem);
-                12
+                16
             }
             0xc4 => {
                 // call nz, nn
@@ -1355,8 +1367,10 @@ impl CPU {
                 if self.nz() {
                     self.push_stack(mem, self.pc);
                     self.pc = addr;
+                    24
+                } else {
+                    12
                 }
-                12
             }
             0xc5 => {
                 // push bc
@@ -1372,27 +1386,31 @@ impl CPU {
                 // rst $00
                 self.push_stack(mem, self.pc);
                 self.pc = 0x0;
-                32
+                16
             }
             0xc8 => {
                 // ret z
                 if self.z() {
                     self.pc = self.pop_stack(mem);
+                    20
+                } else {
+                    8
                 }
-                8
             }
             0xc9 => {
                 // ret
                 self.pc = self.pop_stack(mem);
-                8
+                16
             }
             0xca => {
                 // jp z, nn
                 addr = self.fetch16(mem);
                 if self.z() {
                     self.pc = addr;
+                    16
+                } else {
+                    12
                 }
-                12
             }
             0xcc => {
                 // call z, nn
@@ -1400,15 +1418,17 @@ impl CPU {
                 if self.z() {
                     self.push_stack(mem, self.pc);
                     self.pc = addr;
+                    24
+                } else {
+                    12
                 }
-                12
             }
             0xcd => {
                 // call nn
                 addr = self.fetch16(mem);
                 self.push_stack(mem, self.pc);
                 self.pc = addr;
-                12
+                24
 
             }
             0xce => {
@@ -1420,14 +1440,16 @@ impl CPU {
                 // rst $8
                 self.push_stack(mem, self.pc);
                 self.pc = 0x8;
-                32
+                16
             }
             0xd0 => {
                 // ret nc
                 if self.nc() {
                     self.pc = self.pop_stack(mem);
+                    20
+                } else {
+                    8
                 }
-                8
             }
             0xd1 => {
                 // pop de
@@ -1440,8 +1462,10 @@ impl CPU {
                 addr = self.fetch16(mem);
                 if self.nc() {
                     self.pc = addr;
+                    16
+                } else {
+                    12
                 }
-                12
             }
             0xd3 => {
                 panic!("Invalid instruction: 0x{:02X}", op);
@@ -1452,8 +1476,10 @@ impl CPU {
                 if self.nc() {
                     self.push_stack(mem, self.pc);
                     self.pc = addr;
+                    24
+                } else {
+                    12
                 }
-                12
             }
             0xd5 => {
                 // push de
@@ -1469,28 +1495,32 @@ impl CPU {
                 // rst $10
                 self.push_stack(mem, self.pc);
                 self.pc = 0x10;
-                32
+                16
             }
             0xd8 => {
                 // ret c
                 if self.c() {
                     self.pc = self.pop_stack(mem);
+                    20
+                } else {
+                    8
                 }
-                8
             }
             0xd9 => {
                 // reti
                 self.pc = self.pop_stack(mem);
                 self.interrupts = true;
-                8
+                16
             }
             0xda => {
                 // jp c, nn
                 addr = self.fetch16(mem);
                 if self.c() {
                     self.pc = addr;
+                    16
+                } else {
+                    12
                 }
-                12
             }
             0xdb => {
                 panic!("Invalid instruction: 0x{:02X}", op);
@@ -1501,8 +1531,10 @@ impl CPU {
                 if self.c() {
                     self.push_stack(mem, self.pc);
                     self.pc = addr;
+                    24
+                } else {
+                    12
                 }
-                12
             }
             0xdd => {
                 panic!("Invalid instruction: 0x{:02X}", op);
@@ -1516,7 +1548,7 @@ impl CPU {
                 // rst $18
                 self.push_stack(mem, self.pc);
                 self.pc = 0x18;
-                32
+                16
             }
             0xe0 => {
                 // ld ($ff00+n), a
@@ -1561,7 +1593,7 @@ impl CPU {
                 // rst $20
                 self.push_stack(mem, self.pc);
                 self.pc = 0x20;
-                32
+                16
             }
             0xe8 => {
                 immediate = ((self.fetch8(mem) as i8) as i16) as u16;
@@ -1606,7 +1638,7 @@ impl CPU {
                 // rst $28
                 self.push_stack(mem, self.pc);
                 self.pc = 0x28;
-                32
+                16
             }
             0xf0 => {
                 // ld a, ($ff00+n)
@@ -1654,7 +1686,7 @@ impl CPU {
                 // rst $30
                 self.push_stack(mem, self.pc);
                 self.pc = 0x30;
-                32
+                16
             }
             0xf8 => {
                 // ld hl, sp+$n
@@ -1701,7 +1733,7 @@ impl CPU {
                 // rst $38
                 self.push_stack(mem, self.pc);
                 self.pc = 0x38;
-                32
+                16
             }
             _ => {
                 panic!("Unhandled instruction: 0x{:02X}", op);
@@ -2035,6 +2067,124 @@ mod tests {
 
     fn test_memory(rom: &[u8]) -> Memory<'_> {
         Memory::with_rom_buffer(rom)
+    }
+
+    fn execute_with_flags(opcode: u8, operands: &[u8], flags: u8) -> (CPU, u16) {
+        let mut rom = [0; 0x150];
+        rom[0x101..0x101 + operands.len()].copy_from_slice(operands);
+        let mut memory = test_memory(&rom);
+        let mut cpu = CPU::new();
+        cpu.pc = 0x101;
+        cpu.reg.f = flags;
+        let cycles = cpu.execute(&mut memory, opcode);
+        (cpu, cycles)
+    }
+
+    #[test]
+    fn relative_jumps_use_taken_and_untaken_timings() {
+        let (cpu, cycles) = execute_with_flags(0x18, &[2], 0);
+        assert_eq!((cpu.pc, cycles), (0x104, 12));
+
+        for (opcode, taken_flags, untaken_flags) in [
+            (0x20, 0, FLAG_Z),
+            (0x28, FLAG_Z, 0),
+            (0x30, 0, FLAG_C),
+            (0x38, FLAG_C, 0),
+        ] {
+            let (cpu, cycles) = execute_with_flags(opcode, &[2], taken_flags);
+            assert_eq!((cpu.pc, cycles), (0x104, 12));
+
+            let (cpu, cycles) = execute_with_flags(opcode, &[2], untaken_flags);
+            assert_eq!((cpu.pc, cycles), (0x102, 8));
+        }
+    }
+
+    #[test]
+    fn absolute_jumps_use_taken_and_untaken_timings() {
+        let (cpu, cycles) = execute_with_flags(0xc3, &[0x34, 0x12], 0);
+        assert_eq!((cpu.pc, cycles), (0x1234, 16));
+
+        for (opcode, taken_flags, untaken_flags) in [
+            (0xc2, 0, FLAG_Z),
+            (0xca, FLAG_Z, 0),
+            (0xd2, 0, FLAG_C),
+            (0xda, FLAG_C, 0),
+        ] {
+            let (cpu, cycles) = execute_with_flags(opcode, &[0x34, 0x12], taken_flags);
+            assert_eq!((cpu.pc, cycles), (0x1234, 16));
+
+            let (cpu, cycles) = execute_with_flags(opcode, &[0x34, 0x12], untaken_flags);
+            assert_eq!((cpu.pc, cycles), (0x103, 12));
+        }
+    }
+
+    #[test]
+    fn calls_use_taken_and_untaken_timings() {
+        let (cpu, cycles) = execute_with_flags(0xcd, &[0x34, 0x12], 0);
+        assert_eq!((cpu.pc, cpu.sp, cycles), (0x1234, 0xfffc, 24));
+
+        for (opcode, taken_flags, untaken_flags) in [
+            (0xc4, 0, FLAG_Z),
+            (0xcc, FLAG_Z, 0),
+            (0xd4, 0, FLAG_C),
+            (0xdc, FLAG_C, 0),
+        ] {
+            let (cpu, cycles) = execute_with_flags(opcode, &[0x34, 0x12], taken_flags);
+            assert_eq!((cpu.pc, cpu.sp, cycles), (0x1234, 0xfffc, 24));
+
+            let (cpu, cycles) = execute_with_flags(opcode, &[0x34, 0x12], untaken_flags);
+            assert_eq!((cpu.pc, cpu.sp, cycles), (0x103, 0xfffe, 12));
+        }
+    }
+
+    #[test]
+    fn returns_use_taken_and_untaken_timings() {
+        for opcode in [0xc9, 0xd9] {
+            let rom = [0; 0x150];
+            let mut memory = test_memory(&rom);
+            let mut cpu = CPU::new();
+            cpu.sp = 0xfffc;
+            memory.write16(cpu.sp, 0x1234);
+
+            assert_eq!(cpu.execute(&mut memory, opcode), 16);
+            assert_eq!((cpu.pc, cpu.sp), (0x1234, 0xfffe));
+        }
+
+        for (opcode, taken_flags, untaken_flags) in [
+            (0xc0, 0, FLAG_Z),
+            (0xc8, FLAG_Z, 0),
+            (0xd0, 0, FLAG_C),
+            (0xd8, FLAG_C, 0),
+        ] {
+            let rom = [0; 0x150];
+            let mut memory = test_memory(&rom);
+            let mut cpu = CPU::new();
+            cpu.sp = 0xfffc;
+            cpu.reg.f = taken_flags;
+            memory.write16(cpu.sp, 0x1234);
+            assert_eq!(cpu.execute(&mut memory, opcode), 20);
+            assert_eq!((cpu.pc, cpu.sp), (0x1234, 0xfffe));
+
+            let (cpu, cycles) = execute_with_flags(opcode, &[], untaken_flags);
+            assert_eq!((cpu.pc, cpu.sp, cycles), (0x101, 0xfffe, 8));
+        }
+    }
+
+    #[test]
+    fn restart_instructions_take_sixteen_cycles() {
+        for (opcode, vector) in [
+            (0xc7, 0x00),
+            (0xcf, 0x08),
+            (0xd7, 0x10),
+            (0xdf, 0x18),
+            (0xe7, 0x20),
+            (0xef, 0x28),
+            (0xf7, 0x30),
+            (0xff, 0x38),
+        ] {
+            let (cpu, cycles) = execute_with_flags(opcode, &[], 0);
+            assert_eq!((cpu.pc, cpu.sp, cycles), (vector, 0xfffc, 16));
+        }
     }
 
     #[test]
