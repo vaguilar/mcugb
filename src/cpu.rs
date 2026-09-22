@@ -1596,13 +1596,12 @@ impl CPU {
                 16
             }
             0xe8 => {
-                immediate = ((self.fetch8(mem) as i8) as i16) as u16;
-                let (result, carry) = self.sp.overflowing_add(immediate);
-                let result12 = (self.sp & 0xfff) + (immediate & 0xfff);
+                let offset = self.fetch8(mem);
+                let result = self.sp.wrapping_add((offset as i8 as i16) as u16);
                 self.set_flag(FLAG_Z, false);
                 self.set_flag(FLAG_N, false);
-                self.set_flag(FLAG_H, result12 > 0xfff);
-                self.set_flag(FLAG_C, carry);
+                self.set_flag(FLAG_H, (self.sp & 0xf) + (offset as u16 & 0xf) > 0xf);
+                self.set_flag(FLAG_C, (self.sp & 0xff) + offset as u16 > 0xff);
                 self.sp = result;
                 16
             }
@@ -2184,6 +2183,28 @@ mod tests {
         ] {
             let (cpu, cycles) = execute_with_flags(opcode, &[], 0);
             assert_eq!((cpu.pc, cpu.sp, cycles), (vector, 0xfffc, 16));
+        }
+    }
+
+    #[test]
+    fn add_sp_signed_offset_sets_low_byte_flags() {
+        for (sp, offset, expected_sp, expected_flags) in [
+            (0x00ff, 1, 0x0100, FLAG_H | FLAG_C),
+            (0x000f, 1, 0x0010, FLAG_H),
+            (0x0100, -1, 0x00ff, 0),
+            (0x0008, -1, 0x0007, FLAG_H | FLAG_C),
+        ] {
+            let mut rom = [0; 0x150];
+            rom[0x101] = offset as u8;
+            let mut memory = test_memory(&rom);
+            let mut cpu = CPU::new();
+            cpu.pc = 0x101;
+            cpu.sp = sp;
+            cpu.reg.f = FLAG_Z | FLAG_N | FLAG_H | FLAG_C;
+
+            let cycles = cpu.execute(&mut memory, 0xe8);
+
+            assert_eq!((cpu.sp, cpu.reg.f, cycles), (expected_sp, expected_flags, 16));
         }
     }
 
