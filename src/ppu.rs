@@ -188,7 +188,10 @@ impl PPU {
         let window_start_x = mem.reg().wx as i16 - 7;
         let window_start_y = mem.reg().wy;
         let window_line = ly.wrapping_sub(window_start_y);
-        let window_active = mem.reg().lcd_control.window_enable() && ly >= window_start_y;
+        let background_enabled = mem.reg().lcd_control.bg_and_window_enable_priority();
+        let window_active = background_enabled
+            && mem.reg().lcd_control.window_enable()
+            && ly >= window_start_y;
 
         for x in 0..160u8 {
             let window_x = x as i16 - window_start_x;
@@ -212,13 +215,17 @@ impl PPU {
                     bg_py,
                 )
             };
-            let tile_id = mem.read8(tile_map + (tile_y * 32 + tile_x));
-            let bg_tile_addr = self.get_tile_addr(mem, tile_id);
-            let line1 = mem.read8(bg_tile_addr + (2 * py));
-            let line2 = mem.read8(bg_tile_addr + (2 * py + 1));
-            let shift = 7 - px;
-            let bg_pixel = ((line1 >> shift) & 1) | (((line2 >> shift) & 1) << 1);
-            let bg_color = mem.reg().bg_palette_data.map_color(bg_pixel);
+            let (bg_pixel, bg_color) = if background_enabled {
+                let tile_id = mem.read8(tile_map + (tile_y * 32 + tile_x));
+                let bg_tile_addr = self.get_tile_addr(mem, tile_id);
+                let line1 = mem.read8(bg_tile_addr + (2 * py));
+                let line2 = mem.read8(bg_tile_addr + (2 * py + 1));
+                let shift = 7 - px;
+                let pixel = ((line1 >> shift) & 1) | (((line2 >> shift) & 1) << 1);
+                (pixel, mem.reg().bg_palette_data.map_color(pixel))
+            } else {
+                (0, 0)
+            };
 
             let sprite_height = if mem.reg().lcd_control.obj_double_height() { 16 } else { 8 };
             let sprite = if mem.reg().lcd_control.obj_enable() {
@@ -356,7 +363,7 @@ mod tests {
         let mut memory = Memory::with_rom_buffer(&rom);
         let mut buffer = vec![0; 256 * 144 * 2];
         let mut ppu = PPU::new();
-        memory.reg_mut().lcd_control = LCDControl::from_bits(1 << 4);
+        memory.reg_mut().lcd_control = LCDControl::from_bits((1 << 4) | 1);
         memory.reg_mut().bg_palette_data = DMGPalette::from_bits(0xe4);
         memory.write8(0x9800, 0);
         memory.write8(0x8000, 0b1010_0000);
@@ -376,7 +383,7 @@ mod tests {
         let mut memory = Memory::with_rom_buffer(&rom);
         let mut buffer = vec![0; 256 * 144 * 2];
         let mut ppu = PPU::new();
-        memory.reg_mut().lcd_control = LCDControl::from_bits(1 << 4);
+        memory.reg_mut().lcd_control = LCDControl::from_bits((1 << 4) | 1);
         memory.reg_mut().bg_palette_data = DMGPalette::from_bits(0xe4);
         memory.reg_mut().lcd_scx = 255;
         memory.write8(0x981f, 1);
@@ -400,7 +407,7 @@ mod tests {
         let mut memory = Memory::with_rom_buffer(&rom);
         let mut buffer = vec![0; 256 * 144 * 2];
         let mut ppu = PPU::new();
-        memory.reg_mut().lcd_control = LCDControl::from_bits(0b0111_0000);
+        memory.reg_mut().lcd_control = LCDControl::from_bits(0b0111_0001);
         memory.reg_mut().bg_palette_data = DMGPalette::from_bits(0xe4);
         memory.reg_mut().wx = 0;
         memory.write8(0x9c00, 1);
@@ -418,7 +425,7 @@ mod tests {
         let mut memory = Memory::with_rom_buffer(&rom);
         let mut buffer = vec![0; 256 * 144 * 2];
         let mut ppu = PPU::new();
-        memory.reg_mut().lcd_control = LCDControl::from_bits(0b0111_0000);
+        memory.reg_mut().lcd_control = LCDControl::from_bits(0b0111_0001);
         memory.reg_mut().bg_palette_data = DMGPalette::from_bits(0xe4);
         memory.reg_mut().wx = 7;
         memory.reg_mut().wy = 5;
@@ -440,7 +447,7 @@ mod tests {
         let mut memory = Memory::with_rom_buffer(&rom);
         let mut buffer = vec![0; 256 * 144 * 2];
         let mut ppu = PPU::new();
-        memory.reg_mut().lcd_control = LCDControl::from_bits(0b0111_0000);
+        memory.reg_mut().lcd_control = LCDControl::from_bits(0b0111_0001);
         memory.reg_mut().bg_palette_data = DMGPalette::from_bits(0xe4);
         memory.reg_mut().wx = 167;
         memory.write8(0x9800, 0);
@@ -460,13 +467,31 @@ mod tests {
         let mut memory = Memory::with_rom_buffer(&rom);
         let mut buffer = vec![0; 256 * 144 * 2];
         let mut ppu = PPU::new();
-        memory.reg_mut().lcd_control = LCDControl::from_bits(1 << 4);
+        memory.reg_mut().lcd_control = LCDControl::from_bits((1 << 4) | 1);
         memory.reg_mut().bg_palette_data = DMGPalette::from_bits(0b0000_1100);
         memory.write8(0x8000, 0b1000_0000);
 
         ppu.draw_scanline(&mut memory, &mut buffer);
 
         assert_pixel_color(&buffer, 0, 0, 3);
+    }
+
+    #[test]
+    fn disabled_background_and_window_render_white() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        let mut buffer = vec![0; 256 * 144 * 2];
+        let mut ppu = PPU::new();
+        memory.reg_mut().lcd_control = LCDControl::from_bits(0b0111_0000);
+        memory.reg_mut().bg_palette_data = DMGPalette::from_bits(0xff);
+        memory.reg_mut().wx = 7;
+        memory.write8(0x9c00, 1);
+        memory.write8(0x8010, 0xff);
+        memory.write8(0x8011, 0xff);
+
+        ppu.draw_scanline(&mut memory, &mut buffer);
+
+        assert_pixel_color(&buffer, 0, 0, 0);
     }
 
     #[test]

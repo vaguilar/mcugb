@@ -84,7 +84,6 @@ impl LCDControl {
         self.0
     }
 
-    #[expect(dead_code, reason = "used when DMG background priority behavior is implemented")]
     pub const fn bg_and_window_enable_priority(self) -> bool {
         self.0 & Self::BG_AND_WINDOW_ENABLE_PRIORITY != 0
     }
