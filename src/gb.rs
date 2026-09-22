@@ -47,7 +47,7 @@ impl GB<'_> {
         self.cpu.reg.c = 0x13;
         self.cpu.reg.e = 0xd8;
         self.cpu.reg.h = 0x01;
-        self.cpu.reg.h = 0x4d;
+        self.cpu.reg.l = 0x4d;
 
         self.mem.joypad_states[0] = 0x0f;
         self.mem.joypad_states[1] = 0x0f;
@@ -56,5 +56,20 @@ impl GB<'_> {
         self.mem.reg_mut().bg_palette_data = DMGPalette::from_bits(0xfc);
         self.mem.reg_mut().object_palette_0 = DMGPalette::from_bits(0xff);
         self.mem.reg_mut().object_palette_1 = DMGPalette::from_bits(0xff);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::GB;
+
+    #[test]
+    fn reset_initializes_hl() {
+        let rom = [0; 0x150];
+        let mut gb = GB::with_rom_buffer(&rom);
+
+        gb.reset();
+
+        assert_eq!(gb.cpu.hl(), 0x014d);
     }
 }
