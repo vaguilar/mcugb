@@ -242,7 +242,7 @@ impl CPU {
         }
 
         self.divider_cycles += cycles;
-        if self.divider_cycles >= 256 {
+        while self.divider_cycles >= 256 {
             self.divider_cycles -= 256;
             let divider = mem.reg().timer_divider.wrapping_add(1);
             mem.reg_mut().timer_divider = divider;
@@ -2271,6 +2271,18 @@ mod tests {
         cpu.update_timer(&mut memory, 1);
         assert_eq!(memory.reg().timer_divider, 1);
         assert_eq!(cpu.divider_cycles, 0);
+    }
+
+    #[test]
+    fn divider_catches_up_multiple_periods() {
+        let rom = [0; 0x150];
+        let mut memory = test_memory(&rom);
+        let mut cpu = CPU::new();
+
+        cpu.update_timer(&mut memory, 520);
+
+        assert_eq!(memory.reg().timer_divider, 2);
+        assert_eq!(cpu.divider_cycles, 8);
     }
 
     #[test]
