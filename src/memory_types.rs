@@ -198,9 +198,9 @@ pub struct IORegisters {
     /// $FF41
     pub lcd_stat: LCDStatus,
     /// $FF42
-    pub lcd_scx: u8,
-    /// $FF43
     pub lcd_scy: u8,
+    /// $FF43
+    pub lcd_scx: u8,
     /// $FF44
     pub lcd_y: u8,
     /// $FF45
@@ -255,6 +255,8 @@ mod tests {
         assert_eq!(std::mem::align_of::<IORegisters>(), 1);
         assert_eq!(std::mem::offset_of!(IORegisters, lcd_control), 0x140);
         assert_eq!(std::mem::offset_of!(IORegisters, lcd_stat), 0x141);
+        assert_eq!(std::mem::offset_of!(IORegisters, lcd_scy), 0x142);
+        assert_eq!(std::mem::offset_of!(IORegisters, lcd_scx), 0x143);
         assert_eq!(std::mem::offset_of!(IORegisters, timer_tac), 0x107);
         assert_eq!(std::mem::offset_of!(IORegisters, wy), 0x14a);
         assert_eq!(std::mem::offset_of!(IORegisters, wx), 0x14b);
