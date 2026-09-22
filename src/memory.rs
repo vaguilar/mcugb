@@ -174,7 +174,7 @@ impl Memory<'_> {
     }
 
     fn joypad_value(&self, selection: u8) -> u8 {
-        match Joypad::from(selection) {
+        0xc0 | match Joypad::from(selection) {
             Joypad::Both => self.joypad_states[0] & self.joypad_states[1],
             Joypad::Buttons => Joypad::Buttons as u8 | self.joypad_states[0],
             Joypad::Directional => Joypad::Directional as u8 | self.joypad_states[1],
@@ -257,7 +257,7 @@ mod tests {
 
         memory.write8(0xff00, 0x00);
 
-        assert_eq!(memory.reg().joypad, 0b1100);
+        assert_eq!(memory.reg().joypad, 0b1100_1100);
     }
 
     #[test]
@@ -266,11 +266,11 @@ mod tests {
         let mut memory = Memory::with_rom_buffer(&rom);
         memory.joypad_states = [0x0f, 0x0f];
         memory.write8(0xff00, Joypad::Buttons as u8);
-        assert_eq!(memory.read8(0xff00), 0x1f);
+        assert_eq!(memory.read8(0xff00), 0xdf);
 
         memory.joypad_states[0] &= !1;
 
-        assert_eq!(memory.read8(0xff00), 0x1e);
+        assert_eq!(memory.read8(0xff00), 0xde);
     }
 
     #[test]
