@@ -70,6 +70,7 @@ impl Memory<'_> {
                 // echo ram, mirror of $c000–$ddff
                 self.data[(address - 0x2000) as usize]
             },
+            0xff00 => self.joypad_value(self.reg().joypad),
             0xfe00..=0xffff => {
                 self.data[address as usize]
             },
@@ -142,20 +143,8 @@ impl Memory<'_> {
             },
             0xff00 => {
                 // joypad, only top nibble is writable
-                match Joypad::from(val) {
-                    Joypad::Both => {
-                        self.reg_mut().joypad = self.joypad_states[0] & self.joypad_states[1];
-                    },
-                    Joypad::Buttons => {
-                        self.reg_mut().joypad = Joypad::Buttons as u8 | self.joypad_states[0];
-                    },
-                    Joypad::Directional => {
-                        self.reg_mut().joypad = Joypad::Directional as u8 | self.joypad_states[1];
-                    },
-                    Joypad::None => {
-                        self.reg_mut().joypad = 0x3f;
-                    },
-                }
+                let joypad = self.joypad_value(val);
+                self.reg_mut().joypad = joypad;
             },
             0xff46 => {
                 // dma
@@ -179,6 +168,15 @@ impl Memory<'_> {
             *byte = self.read8(addr.wrapping_add(offset as u16));
         }
         self.reg_mut().sprites.copy_from_slice(&source);
+    }
+
+    fn joypad_value(&self, selection: u8) -> u8 {
+        match Joypad::from(selection) {
+            Joypad::Both => self.joypad_states[0] & self.joypad_states[1],
+            Joypad::Buttons => Joypad::Buttons as u8 | self.joypad_states[0],
+            Joypad::Directional => Joypad::Directional as u8 | self.joypad_states[1],
+            Joypad::None => 0x3f,
+        }
     }
 
     fn set_external_ram_enabled(&mut self, address: u16, value: u8) {
@@ -240,6 +238,7 @@ impl Memory<'_> {
 #[cfg(test)]
 mod tests {
     use super::Memory;
+    use crate::memory_types::Joypad;
 
     fn rom_with_cartridge_type(cartridge_type: u8) -> [u8; 0x150] {
         let mut rom = [0; 0x150];
@@ -256,6 +255,19 @@ mod tests {
         memory.write8(0xff00, 0x00);
 
         assert_eq!(memory.reg().joypad, 0b1100);
+    }
+
+    #[test]
+    fn joypad_reads_current_button_state() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        memory.joypad_states = [0x0f, 0x0f];
+        memory.write8(0xff00, Joypad::Buttons as u8);
+        assert_eq!(memory.read8(0xff00), 0x1f);
+
+        memory.joypad_states[0] &= !1;
+
+        assert_eq!(memory.read8(0xff00), 0x1e);
     }
 
     #[test]
