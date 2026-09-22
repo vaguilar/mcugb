@@ -1,3 +1,41 @@
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u8)]
+pub enum Interrupt {
+    VBlank = 0x01,
+    LCDC = 0x02,
+    Timer = 0x04,
+    Serial = 0x08,
+    JoyPad = 0x10,
+}
+
+#[repr(transparent)]
+#[derive(Clone, Copy, Default)]
+pub struct InterruptFlags(u8);
+
+impl InterruptFlags {
+    #[allow(dead_code, reason = "used by tests and direct register initialization")]
+    pub const fn from_bits(bits: u8) -> Self {
+        Self(bits)
+    }
+
+    #[allow(dead_code, reason = "used by tests and raw register access")]
+    pub const fn bits(self) -> u8 {
+        self.0
+    }
+
+    pub const fn contains(self, interrupt: Interrupt) -> bool {
+        self.0 & interrupt as u8 != 0
+    }
+
+    pub fn insert(&mut self, interrupt: Interrupt) {
+        self.0 |= interrupt as u8;
+    }
+
+    pub fn remove(&mut self, interrupt: Interrupt) {
+        self.0 &= !(interrupt as u8);
+    }
+}
+
 #[repr(u8)]
 #[allow(dead_code)]
 pub enum Joypad {
@@ -191,7 +229,7 @@ pub struct IORegisters {
     pub timer_tac: TimerControl,
     _padding1: [u8; 7],
     /// $FF0F
-    pub interrupts: u8,
+    pub interrupts: InterruptFlags,
     /// $FF10-$FF25
     pub audio: [u8; 22],
     _padding2: [u8; 10],
@@ -238,12 +276,15 @@ pub struct IORegisters {
     /// $FF80-$FFFE
     pub hram: [u8; 0x7f],
     /// $FFFF
-    pub interrupt_enable: u8,
+    pub interrupt_enable: InterruptFlags,
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{DMGPalette, IORegisters, LCDControl, LCDStatus, PPUMode, TimerControl};
+    use super::{
+        DMGPalette, IORegisters, Interrupt, InterruptFlags, LCDControl, LCDStatus, PPUMode,
+        TimerControl,
+    };
 
     #[test]
     fn register_types_preserve_byte_layout() {
@@ -255,6 +296,8 @@ mod tests {
         assert_eq!(std::mem::align_of::<TimerControl>(), 1);
         assert_eq!(std::mem::size_of::<DMGPalette>(), 1);
         assert_eq!(std::mem::align_of::<DMGPalette>(), 1);
+        assert_eq!(std::mem::size_of::<InterruptFlags>(), 1);
+        assert_eq!(std::mem::align_of::<InterruptFlags>(), 1);
         assert_eq!(std::mem::size_of::<IORegisters>(), 0x200);
         assert_eq!(std::mem::align_of::<IORegisters>(), 1);
         assert_eq!(std::mem::offset_of!(IORegisters, lcd_control), 0x140);
@@ -309,5 +352,17 @@ mod tests {
         assert_eq!(palette.map_color(1), 2);
         assert_eq!(palette.map_color(2), 1);
         assert_eq!(palette.map_color(3), 0);
+    }
+
+    #[test]
+    fn interrupt_flags_track_named_sources() {
+        let mut flags = InterruptFlags::from_bits(0);
+
+        flags.insert(Interrupt::Timer);
+        assert!(flags.contains(Interrupt::Timer));
+        assert_eq!(flags.bits(), Interrupt::Timer as u8);
+
+        flags.remove(Interrupt::Timer);
+        assert!(!flags.contains(Interrupt::Timer));
     }
 }

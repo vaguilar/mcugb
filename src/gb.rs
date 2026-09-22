@@ -1,5 +1,5 @@
-use crate::cpu::{Interrupt, CPU};
-use crate::memory_types::{DMGPalette, LCDControl};
+use crate::cpu::CPU;
+use crate::memory_types::{DMGPalette, Interrupt, LCDControl};
 use crate::ppu::PPU;
 use crate::memory::Memory;
 

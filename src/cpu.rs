@@ -1,4 +1,5 @@
 use crate::memory::Memory;
+use crate::memory_types::{Interrupt, InterruptFlags};
 
 #[inline]
 fn set_flag(flags: &mut u8, mask: u8, set: bool) {
@@ -13,15 +14,6 @@ static FLAG_Z: u8 = 0x80;
 static FLAG_N: u8 = 0x40;
 static FLAG_H: u8 = 0x20;
 static FLAG_C: u8 = 0x10;
-
-#[repr(u8)]
-pub enum Interrupt {
-    VBlank = 0x01,
-    LCDC = 0x02,
-    Timer = 0x04,
-    Serial = 0x08,
-    JoyPad = 0x10,
-}
 
 pub struct CPU {
     pub pc: u16,
@@ -131,14 +123,14 @@ impl CPU {
     }
 
     pub fn set_interrupt(&mut self, mem: &mut Memory, interrupt: Interrupt) {
-        mem.reg_mut().interrupts |= interrupt as u8;
+        mem.reg_mut().interrupts.insert(interrupt);
     }
 
     pub fn unset_interrupt(&mut self, mem: &mut Memory, interrupt: Interrupt) {
-        mem.reg_mut().interrupts &= !(interrupt as u8);
+        mem.reg_mut().interrupts.remove(interrupt);
     }
 
-    pub fn interrupt_reg(&self, mem: &Memory) -> u8 {
+    pub fn interrupt_reg(&self, mem: &Memory) -> InterruptFlags {
         mem.reg().interrupt_enable
     }
 
@@ -190,27 +182,37 @@ impl CPU {
         if self.interrupts {
             let interrupt_flag = mem.reg().interrupts;
             let interrupt_enable = self.interrupt_reg(&mem);
-            if interrupt_enable & Interrupt::VBlank as u8 & interrupt_flag != 0 {
+            if interrupt_enable.contains(Interrupt::VBlank)
+                && interrupt_flag.contains(Interrupt::VBlank)
+            {
                 self.interrupts = false;
                 self.push_stack(mem, self.pc);
                 self.pc = 0x0040;
                 self.unset_interrupt(mem, Interrupt::VBlank);
-            } else if interrupt_enable & Interrupt::LCDC as u8 & interrupt_flag != 0 {
+            } else if interrupt_enable.contains(Interrupt::LCDC)
+                && interrupt_flag.contains(Interrupt::LCDC)
+            {
                 self.interrupts = false;
                 self.push_stack(mem, self.pc);
                 self.pc = 0x0048;
                 self.unset_interrupt(mem, Interrupt::LCDC);
-            } else if interrupt_enable & Interrupt::Timer as u8 & interrupt_flag != 0 {
+            } else if interrupt_enable.contains(Interrupt::Timer)
+                && interrupt_flag.contains(Interrupt::Timer)
+            {
                 self.interrupts = false;
                 self.push_stack(mem, self.pc);
                 self.pc = 0x0050;
                 self.unset_interrupt(mem, Interrupt::Timer);
-            } else if interrupt_enable & Interrupt::Serial as u8 & interrupt_flag != 0 {
+            } else if interrupt_enable.contains(Interrupt::Serial)
+                && interrupt_flag.contains(Interrupt::Serial)
+            {
                 self.interrupts = false;
                 self.push_stack(mem, self.pc);
                 self.pc = 0x0058;
                 self.unset_interrupt(mem, Interrupt::Serial);
-            } else if interrupt_enable & Interrupt::JoyPad as u8 & interrupt_flag != 0 {
+            } else if interrupt_enable.contains(Interrupt::JoyPad)
+                && interrupt_flag.contains(Interrupt::JoyPad)
+            {
                 self.interrupts = false;
                 self.push_stack(mem, self.pc);
                 self.pc = 0x0060;
@@ -2056,9 +2058,9 @@ fn sra(dst: &mut u8, flags: &mut u8, indirect: bool) -> u16 {
 
 #[cfg(test)]
 mod tests {
-    use super::{daa, CPU, Interrupt, FLAG_C, FLAG_H, FLAG_N, FLAG_Z};
+    use super::{daa, CPU, FLAG_C, FLAG_H, FLAG_N, FLAG_Z};
     use crate::memory::Memory;
-    use crate::memory_types::TimerControl;
+    use crate::memory_types::{Interrupt, TimerControl};
 
     fn test_memory(rom: &[u8]) -> Memory<'_> {
         Memory::with_rom_buffer(rom)
@@ -2241,7 +2243,7 @@ mod tests {
         cpu.update_timer(&mut memory, 16);
 
         assert_eq!(memory.reg().timer_tima, 0x42);
-        assert_ne!(memory.reg().interrupts & Interrupt::Timer as u8, 0);
+        assert!(memory.reg().interrupts.contains(Interrupt::Timer));
         assert_eq!(cpu.timer_cycles, 0);
     }
 
