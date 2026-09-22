@@ -68,7 +68,7 @@ impl Memory<'_> {
             },
             0xe000..=0xfdff => {
                 // echo ram, mirror of $c000–$ddff
-                self.data[(address - 0x1000) as usize]
+                self.data[(address - 0x2000) as usize]
             },
             0xfe00..=0xffff => {
                 self.data[address as usize]
@@ -129,6 +129,10 @@ impl Memory<'_> {
                 // low RAM
                 self.data[addr as usize] = val;
             },
+            0xe000..=0xfdff => {
+                // echo ram, mirror of $c000–$ddff
+                self.data[(addr - 0x2000) as usize] = val;
+            },
             // 0xfe00..=0xfebf => {
             //     // OAM
             //     self.data[addr as usize] = val;
@@ -161,9 +165,6 @@ impl Memory<'_> {
             0xfe00..=0xffff => {
                 self.data[addr as usize] = val;
             },
-            _ => {
-                panic!("Unhandled memory write to address: 0x{:04X}", addr);
-            }
         }
     }
 
@@ -278,6 +279,18 @@ mod tests {
 
         assert_eq!(memory.reg().wy, 42);
         assert_eq!(memory.reg().wx, 111);
+    }
+
+    #[test]
+    fn echo_ram_writes_share_work_ram() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+
+        memory.write8(0xe123, 0x42);
+        assert_eq!(memory.read8(0xc123), 0x42);
+
+        memory.write8(0xc456, 0x99);
+        assert_eq!(memory.read8(0xe456), 0x99);
     }
 
     #[test]
