@@ -133,6 +133,7 @@ pub struct LCDStatus(u8);
 
 impl LCDStatus {
     const PPU_MODE: u8 = 0b11;
+    const INTERRUPT_SELECT: u8 = 0b0111_1000;
 
     #[allow(dead_code, reason = "used by tests and reserved for raw STAT access")]
     pub const fn bits(self) -> u8 {
@@ -152,6 +153,10 @@ impl LCDStatus {
 
     pub fn set_ppu_mode(&mut self, mode: PPUMode) {
         self.0 = (self.0 & !Self::PPU_MODE) | mode as u8;
+    }
+
+    pub fn write(&mut self, value: u8) {
+        self.0 = (self.0 & !Self::INTERRUPT_SELECT) | (value & Self::INTERRUPT_SELECT);
     }
 
     pub fn set_lyc_equal(&mut self, equal: bool) {

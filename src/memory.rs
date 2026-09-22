@@ -146,6 +146,9 @@ impl Memory<'_> {
                 let joypad = self.joypad_value(val);
                 self.reg_mut().joypad = joypad;
             },
+            0xff41 => {
+                self.reg_mut().lcd_stat.write(val);
+            },
             0xff46 => {
                 // dma
                 self.reg_mut().oam_dma_source_address = val;
@@ -238,7 +241,7 @@ impl Memory<'_> {
 #[cfg(test)]
 mod tests {
     use super::Memory;
-    use crate::memory_types::Joypad;
+    use crate::memory_types::{Joypad, PPUMode};
 
     fn rom_with_cartridge_type(cartridge_type: u8) -> [u8; 0x150] {
         let mut rom = [0; 0x150];
@@ -280,6 +283,20 @@ mod tests {
 
         memory.data[0xff06] = 0x99;
         assert_eq!(memory.reg().timer_tma, 0x99);
+    }
+
+    #[test]
+    fn stat_writes_preserve_ppu_owned_bits() {
+        let rom = [0; 0x150];
+        let mut memory = Memory::with_rom_buffer(&rom);
+        memory.reg_mut().lcd_stat.set_ppu_mode(PPUMode::Drawing);
+        memory.reg_mut().lcd_stat.set_lyc_equal(true);
+
+        memory.write8(0xff41, 0b0111_1000);
+        assert_eq!(memory.read8(0xff41) & 0x7f, 0b0111_1111);
+
+        memory.write8(0xff41, 0);
+        assert_eq!(memory.read8(0xff41) & 0x7f, 0b0000_0111);
     }
 
     #[test]
