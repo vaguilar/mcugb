@@ -228,7 +228,7 @@ impl CPU {
         if tac.enabled() {
             let period = tac.period_cycles();
             self.timer_cycles += cycles;
-            if self.timer_cycles >= period {
+            while self.timer_cycles >= period {
                 self.timer_cycles -= period;
                 let (timer, overflow) = mem.reg().timer_tima.overflowing_add(1);
                 mem.reg_mut().timer_tima = timer;
@@ -2243,6 +2243,19 @@ mod tests {
         assert_eq!(memory.reg().timer_tima, 0x42);
         assert_ne!(memory.reg().interrupts & Interrupt::Timer as u8, 0);
         assert_eq!(cpu.timer_cycles, 0);
+    }
+
+    #[test]
+    fn timer_catches_up_multiple_periods() {
+        let rom = [0; 0x150];
+        let mut memory = test_memory(&rom);
+        let mut cpu = CPU::new();
+        memory.reg_mut().timer_tac = TimerControl::from_bits(0b101);
+
+        cpu.update_timer(&mut memory, 40);
+
+        assert_eq!(memory.reg().timer_tima, 2);
+        assert_eq!(cpu.timer_cycles, 8);
     }
 
     #[test]
