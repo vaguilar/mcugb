@@ -174,9 +174,10 @@ impl Memory<'_> {
     }
 
     pub fn mem_dma(&mut self, addr: u16) {
-        let start = addr as usize;
-        let end = start + 160;
-        let source = self.data[start..end].to_owned();
+        let mut source = [0; 160];
+        for (offset, byte) in source.iter_mut().enumerate() {
+            *byte = self.read8(addr.wrapping_add(offset as u16));
+        }
         self.reg_mut().sprites.copy_from_slice(&source);
     }
 
@@ -291,6 +292,19 @@ mod tests {
 
         memory.write8(0xc456, 0x99);
         assert_eq!(memory.read8(0xe456), 0x99);
+    }
+
+    #[test]
+    fn dma_reads_source_through_memory_bus() {
+        let mut rom = [0; 0x8000];
+        for (index, byte) in rom[0x1200..0x12a0].iter_mut().enumerate() {
+            *byte = index as u8;
+        }
+        let mut memory = Memory::with_rom_buffer(&rom);
+
+        memory.write8(0xff46, 0x12);
+
+        assert_eq!(&memory.reg().sprites, &rom[0x1200..0x12a0]);
     }
 
     #[test]
